@@ -22,12 +22,18 @@ import logging
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURAÇÃO DE CAMINHOS
 # ─────────────────────────────────────────────────────────────────────────────
-BASE_DIR   = Path(r"C:\AuditoriaTA")
+import os
+
+if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
+    BASE_DIR = Path("/tmp/AuditoriaTA")
+else:
+    BASE_DIR = Path(r"C:\AuditoriaTA")
+
 DADOS_DIR  = BASE_DIR / "dados"
 BACKUP_DIR = BASE_DIR / "dados" / "backups"
 
 # Fallback para ambientes de desenvolvimento (Linux/Mac/sandbox)
-if not BASE_DIR.drive:
+if not BASE_DIR.drive and not (os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV")):
     BASE_DIR   = Path.home() / "AuditoriaTA"
     DADOS_DIR  = BASE_DIR / "dados"
     BACKUP_DIR = BASE_DIR / "dados" / "backups"

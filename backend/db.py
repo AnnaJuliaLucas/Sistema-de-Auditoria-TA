@@ -40,14 +40,19 @@ if USE_POSTGRES:
         log.info("Using PostgreSQL: (masked due to error)")
 else:
     import sqlite3
-    # PATH CONFIGURATION — same location as original database.py
-    BASE_DIR   = Path(r"C:\AuditoriaTA")
+    import os
+    # PATH CONFIGURATION
+    IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+    
+    if IS_VERCEL:
+        BASE_DIR = Path("/tmp/AuditoriaTA")
+    else:
+        BASE_DIR = Path(r"C:\AuditoriaTA")
+        if not BASE_DIR.drive:
+            BASE_DIR = Path.home() / "AuditoriaTA"
+            
     DADOS_DIR  = BASE_DIR / "dados"
     BACKUP_DIR = BASE_DIR / "dados" / "backups"
-    if not BASE_DIR.drive:
-        BASE_DIR   = Path.home() / "AuditoriaTA"
-        DADOS_DIR  = BASE_DIR / "dados"
-        BACKUP_DIR = BASE_DIR / "dados" / "backups"
     DB_PATH = DADOS_DIR / "auditoria_ta.db"
     MAX_BACKUPS = 30
     log.info(f"Using SQLite: {DB_PATH}")
