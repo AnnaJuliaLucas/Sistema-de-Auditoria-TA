@@ -118,7 +118,7 @@ export default function NovaAuditoriaPage() {
                         <input type="text" value={assessmentPath} onChange={e => setAssessmentPath(e.target.value)}
                             className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
                             placeholder="C:\caminho\para\assessment.xlsx" />
-                        <button onClick={handlePickFile}
+                        <button type="button" onClick={handlePickFile}
                             className="px-6 bg-slate-700 hover:bg-slate-600 text-white rounded-2xl transition-all font-medium text-sm flex items-center shadow-lg border border-white/5">
                             📂 Selecionar
                         </button>
@@ -134,7 +134,7 @@ export default function NovaAuditoriaPage() {
                         <input type="text" value={evidencePath} onChange={e => setEvidencePath(e.target.value)}
                             className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
                             placeholder="C:\caminho\para\evidencias\" />
-                        <button onClick={handlePickFolder}
+                        <button type="button" onClick={handlePickFolder}
                             className="px-6 bg-slate-700 hover:bg-slate-600 text-white rounded-2xl transition-all font-medium text-sm flex items-center shadow-lg border border-white/5">
                             📁 Selecionar
                         </button>
