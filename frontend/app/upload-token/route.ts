@@ -19,15 +19,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
-        // Allow generating tokens for anyone authenticated in the app
+        // Removes max 4.5MB SDK default so 200MB zip can pass security token validation
         return {
-          allowedContentTypes: [
-            'application/zip', 
-            'application/x-zip-compressed', 
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
-            'application/vnd.ms-excel',
-            'application/octet-stream'
-          ],
+          maximumSizeInBytes: 500 * 1024 * 1024, 
           tokenPayload: JSON.stringify({}),
         };
       },

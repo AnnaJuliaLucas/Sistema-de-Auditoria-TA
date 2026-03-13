@@ -38,15 +38,18 @@ export default function NovaAuditoriaPage() {
 
             // Vercel Blob: Faz o upload direto na nuvem pelo navegador!
             if (evidenceFile) {
-                const blob = await upload(evidenceFile.name, evidenceFile, {
+                const safeName = evidenceFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_");
+                const blob = await upload(safeName, evidenceFile, {
                     access: 'public',
                     handleUploadUrl: `${window.location.origin}/upload-token`,
+                    multipart: true, // Crucial para arquivos de 200MB
                 });
                 finalEvidenceUrl = blob.url;
             }
 
             if (assessmentFile) {
-                const blob = await upload(assessmentFile.name, assessmentFile, {
+                const safeName = assessmentFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_");
+                const blob = await upload(safeName, assessmentFile, {
                     access: 'public',
                     handleUploadUrl: `${window.location.origin}/upload-token`,
                 });
