@@ -1,0 +1,822 @@
+"""
+db.py — Database connection layer for FastAPI backend.
+Supports BOTH SQLite (local dev) and PostgreSQL (Docker/production).
+
+Behavior:
+  - If DATABASE_URL env var is set → uses PostgreSQL
+  - Otherwise → uses SQLite at C:\AuditoriaTA\dados\auditoria_ta.db
+"""
+
+import os
+import json
+import shutil
+from pathlib import Path
+from datetime import datetime
+from contextlib import contextmanager
+from typing import Optional
+import logging
+
+log = logging.getLogger("auditoria_db")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE MODE DETECTION
+# ─────────────────────────────────────────────────────────────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+USE_POSTGRES = DATABASE_URL.startswith("postgresql")
+
+if USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+    log.info(f"Using PostgreSQL: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'configured'}")
+else:
+    import sqlite3
+    # PATH CONFIGURATION — same location as original database.py
+    BASE_DIR   = Path(r"C:\AuditoriaTA")
+    DADOS_DIR  = BASE_DIR / "dados"
+    BACKUP_DIR = BASE_DIR / "dados" / "backups"
+    if not BASE_DIR.drive:
+        BASE_DIR   = Path.home() / "AuditoriaTA"
+        DADOS_DIR  = BASE_DIR / "dados"
+        BACKUP_DIR = BASE_DIR / "dados" / "backups"
+    DB_PATH = DADOS_DIR / "auditoria_ta.db"
+    MAX_BACKUPS = 30
+    log.info(f"Using SQLite: {DB_PATH}")
+
+
+def ensure_dirs():
+    if not USE_POSTGRES:
+        DADOS_DIR.mkdir(parents=True, exist_ok=True)
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONNECTION
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _pg_connect():
+    conn = psycopg2.connect(DATABASE_URL)
+    return conn
+
+def _sqlite_connect():
+    conn = sqlite3.connect(str(DB_PATH), detect_types=sqlite3.PARSE_DECLTYPES)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+@contextmanager
+def get_db():
+    """Context manager for database connections. Works with both SQLite and PostgreSQL."""
+    if USE_POSTGRES:
+        conn = _pg_connect()
+        try:
+            yield PgCursorWrapper(conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    else:
+        conn = _sqlite_connect()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
+class PgCursorWrapper:
+    """Wraps psycopg2 connection to provide sqlite3.Row-like dict access via RealDictCursor."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=None):
+        # Convert ? placeholders to %s for PostgreSQL
+        sql = sql.replace("?", "%s")
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, params)
+        return PgResultWrapper(cur)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+
+class PgResultWrapper:
+    """Makes psycopg2 cursor results look like sqlite3 results."""
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self.lastrowid = None
+        try:
+            if cursor.description and cursor.statusmessage.startswith("INSERT"):
+                # Try to get last inserted id
+                try:
+                    cursor.execute("SELECT lastval()")
+                    row = cursor.fetchone()
+                    self.lastrowid = row["lastval"] if row else None
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return dict(row) if row else None
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+def _safe_int(v):
+    if v is None:
+        return None
+    try:
+        if isinstance(v, float) and (v != v):  # NaN
+            return None
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# INIT
+# ─────────────────────────────────────────────────────────────────────────────
+def init_db():
+    """Initialize/migrate the database."""
+    if USE_POSTGRES:
+        _init_postgres()
+    else:
+        ensure_dirs()
+        import sys
+        parent = str(Path(__file__).resolve().parent.parent)
+        if parent not in sys.path:
+            sys.path.insert(0, parent)
+        import database as original_db
+        original_db.init_db()
+    log.info("Database initialized")
+
+
+def _init_postgres():
+    """Create tables in PostgreSQL if they don't exist."""
+    conn = _pg_connect()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS auditorias (
+            id SERIAL PRIMARY KEY,
+            unidade TEXT NOT NULL,
+            area TEXT NOT NULL,
+            ciclo TEXT NOT NULL,
+            data_criacao TEXT,
+            data_atualizacao TEXT,
+            status TEXT DEFAULT 'em_andamento',
+            assessment_file_path TEXT DEFAULT '',
+            evidence_folder_path TEXT DEFAULT '',
+            openai_api_key TEXT DEFAULT '',
+            ai_provider TEXT DEFAULT 'openai',
+            ai_base_url TEXT DEFAULT '',
+            modo_analise TEXT DEFAULT 'completo',
+            observacoes TEXT DEFAULT '',
+            UNIQUE(unidade, area, ciclo)
+        );
+
+        CREATE TABLE IF NOT EXISTS avaliacoes (
+            id SERIAL PRIMARY KEY,
+            auditoria_id INTEGER REFERENCES auditorias(id) ON DELETE CASCADE,
+            pratica_num INTEGER,
+            pratica_nome TEXT,
+            subitem_idx INTEGER,
+            subitem_nome TEXT,
+            evidencia_descricao TEXT DEFAULT '',
+            nivel_0 TEXT DEFAULT '',
+            nivel_1 TEXT DEFAULT '',
+            nivel_2 TEXT DEFAULT '',
+            nivel_3 TEXT DEFAULT '',
+            nivel_4 TEXT DEFAULT '',
+            nota_self_assessment INTEGER,
+            decisao TEXT DEFAULT 'pendente',
+            nota_final INTEGER,
+            descricao_nc TEXT DEFAULT '',
+            comentarios TEXT DEFAULT '',
+            ia_decisao TEXT,
+            ia_nota_sugerida INTEGER,
+            ia_confianca TEXT,
+            ia_pontos_atendidos TEXT,
+            ia_pontos_faltantes TEXT,
+            ia_analise_detalhada TEXT,
+            ia_status TEXT,
+            data_atualizacao TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id SERIAL PRIMARY KEY,
+            timestamp TEXT,
+            auditoria_id INTEGER,
+            pratica_num INTEGER,
+            subitem_idx INTEGER,
+            campo TEXT,
+            valor_antes TEXT,
+            valor_depois TEXT,
+            usuario TEXT DEFAULT 'auditor'
+        );
+
+        CREATE TABLE IF NOT EXISTS chat_revisao (
+            id SERIAL PRIMARY KEY,
+            auditoria_id INTEGER,
+            pratica_num INTEGER,
+            subitem_idx INTEGER,
+            timestamp TEXT,
+            role TEXT,
+            conteudo TEXT,
+            decisao_snapshot TEXT,
+            nota_snapshot INTEGER,
+            confianca_snapshot TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS diario_auditoria (
+            id SERIAL PRIMARY KEY,
+            auditoria_id INTEGER,
+            data_entrada TEXT,
+            tipo TEXT DEFAULT 'observacao',
+            titulo TEXT DEFAULT '',
+            conteudo TEXT DEFAULT '',
+            pratica_ref TEXT DEFAULT '',
+            prioridade TEXT DEFAULT 'normal',
+            resolvido INTEGER DEFAULT 0,
+            data_criacao TEXT,
+            data_atualizacao TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'auditor'
+        );
+
+        CREATE TABLE IF NOT EXISTS aprendizados (
+            id SERIAL PRIMARY KEY,
+            auditoria_id INTEGER,
+            pratica_num INTEGER,
+            subitem_idx INTEGER,
+            categoria TEXT,
+            descricao TEXT,
+            exemplo TEXT,
+            data_criacao TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS snapshots_nota (
+            id SERIAL PRIMARY KEY,
+            auditoria_id INTEGER,
+            pratica_num INTEGER,
+            subitem_idx INTEGER,
+            timestamp TEXT,
+            nota INTEGER,
+            origem TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS system_config (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+    """)
+    conn.commit()
+    conn.close()
+    log.info("PostgreSQL tables created/verified")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CRUD — AUDITORIAS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def listar_auditorias() -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT  a.*,
+                    COUNT(av.id)                               AS total_subitens,
+                    SUM(CASE WHEN av.decisao != 'pendente'
+                             AND av.decisao IS NOT NULL
+                             THEN 1 ELSE 0 END)                AS subitens_avaliados,
+                    AVG(CASE WHEN av.nota_final IS NOT NULL
+                             THEN CAST(av.nota_final AS FLOAT)
+                             ELSE NULL END)                    AS media_nota_final,
+                    SUM(CASE WHEN av.ia_status = 'ok'
+                             THEN 1 ELSE 0 END)                AS ia_analisados
+            FROM    auditorias a
+            LEFT JOIN avaliacoes av ON av.auditoria_id = a.id
+            GROUP BY a.id, a.unidade, a.area, a.ciclo, a.data_criacao,
+                     a.data_atualizacao, a.status, a.assessment_file_path,
+                     a.evidence_folder_path, a.openai_api_key, a.observacoes, a.modo_analise,
+                     a.ai_provider, a.ai_base_url
+            ORDER BY a.ciclo DESC, a.unidade, a.area
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_auditoria(auditoria_id: int) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM auditorias WHERE id=?", (auditoria_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def atualizar_status(auditoria_id: int, status: str):
+    with get_db() as conn:
+        now = datetime.now().isoformat()
+        conn.execute(
+            "UPDATE auditorias SET status=?, data_atualizacao=? WHERE id=?",
+            (status, now, auditoria_id)
+        )
+
+
+def atualizar_config(auditoria_id: int, assessment_path: str,
+                     evidence_folder: str, api_key: str, observacoes: str = None, 
+                     modo_analise: str = "completo"):
+    with get_db() as conn:
+        now = datetime.now().isoformat()
+        if observacoes is not None:
+            conn.execute("""
+                UPDATE auditorias
+                SET assessment_file_path=?, evidence_folder_path=?,
+                    openai_api_key=?, data_atualizacao=?, observacoes=?,
+                    modo_analise=?
+                WHERE id=?
+            """, (assessment_path, evidence_folder, api_key, now, observacoes, modo_analise, auditoria_id))
+        else:
+            conn.execute("""
+                UPDATE auditorias
+                SET assessment_file_path=?, evidence_folder_path=?,
+                    openai_api_key=?, data_atualizacao=?, modo_analise=?
+                WHERE id=?
+            """, (assessment_path, evidence_folder, api_key, now, modo_analise, auditoria_id))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CRUD — AVALIAÇÕES
+# ─────────────────────────────────────────────────────────────────────────────
+
+def carregar_avaliacoes(auditoria_id: int) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT * FROM avaliacoes
+            WHERE auditoria_id=?
+            ORDER BY pratica_num, subitem_idx
+        """, (auditoria_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_avaliacao(avaliacao_id: int) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM avaliacoes WHERE id=?", (avaliacao_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def salvar_decisao(avaliacao_id: int, decisao: str, nota_final: Optional[int],
+                   descricao_nc: str, comentarios: str, usuario: str = "auditor"):
+    """Save auditor's manual decision — the core operation."""
+    nota_final = _safe_int(nota_final)
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT decisao, nota_final, auditoria_id, pratica_num, subitem_idx, ia_status, ia_decisao FROM avaliacoes WHERE id=?",
+            (avaliacao_id,)
+        ).fetchone()
+        
+        ia_status = row.get("ia_status") if row else None
+        if row:
+            if row["decisao"] != decisao:
+                conn.execute("""
+                    INSERT INTO audit_log (timestamp, auditoria_id, pratica_num, subitem_idx, campo, valor_antes, valor_depois, usuario)
+                    VALUES (?,?,?,?,?,?,?,?)
+                """, (now, row["auditoria_id"], row["pratica_num"], row["subitem_idx"],
+                      "decisao", row["decisao"], decisao, usuario))
+            if row["nota_final"] != nota_final:
+                conn.execute("""
+                    INSERT INTO audit_log (timestamp, auditoria_id, pratica_num, subitem_idx, campo, valor_antes, valor_depois, usuario)
+                    VALUES (?,?,?,?,?,?,?,?)
+                """, (now, row["auditoria_id"], row["pratica_num"], row["subitem_idx"],
+                      "nota_final", str(row["nota_final"]), str(nota_final), usuario))
+
+        conn.execute("""
+            UPDATE avaliacoes
+            SET decisao=?, nota_final=?, descricao_nc=?, comentarios=?, data_atualizacao=?
+            WHERE id=?
+        """, (decisao, nota_final, descricao_nc, comentarios, now, avaliacao_id))
+
+        if row:
+            conn.execute(
+                "UPDATE auditorias SET data_atualizacao=? WHERE id=?",
+                (now, row["auditoria_id"])
+            )
+            
+            # --- AI LEARNING CAPTURE ---
+            # If the human correction differs from the AI suggestion, save it as a "learning"
+            ia_decisao = row.get("ia_decisao")
+            if ia_status == "ok" and ia_decisao and ia_decisao != decisao:
+                # Get more context for the learning record
+                motivo = f"IA sugeriu '{ia_decisao}', Humano definiu '{decisao}'"
+                if descricao_nc:
+                    motivo += f" | Justificativa: {descricao_nc}"
+                
+                # We'll call salvation_aprendizado internally if we had its definition, 
+                # but to avoid circularity or complex flow, we do it here or via a helper.
+                conn.execute("""
+                    INSERT INTO aprendizados (auditoria_id, pratica_num, subitem_idx, categoria, descricao, exemplo, data_criacao)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (row["auditoria_id"], row["pratica_num"], row["subitem_idx"], 
+                      "correcao_humana", motivo, comentarios, now))
+
+
+def salvar_analise_ia(avaliacao_id: int, result: dict, nota_sa: int):
+    """Save AI analysis result to an evaluation."""
+    now = datetime.now().isoformat()
+    decisao = result.get("decisao", "insuficiente")
+    nota_sugerida = _safe_int(result.get("nota_sugerida"))
+
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE avaliacoes
+            SET ia_decisao=?, ia_nota_sugerida=?, ia_confianca=?,
+                ia_pontos_atendidos=?, ia_pontos_faltantes=?,
+                ia_analise_detalhada=?, ia_status=?,
+                decisao=CASE WHEN decisao='pendente' THEN ? ELSE decisao END,
+                nota_final=CASE WHEN decisao='pendente' THEN ? ELSE nota_final END,
+                data_atualizacao=?
+            WHERE id=?
+        """, (
+            decisao, nota_sugerida, result.get("confianca"),
+            json.dumps(result.get("pontos_atendidos") if isinstance(result.get("pontos_atendidos"), list) else [], ensure_ascii=False),
+            json.dumps(result.get("pontos_faltantes") if isinstance(result.get("pontos_faltantes"), list) else [], ensure_ascii=False),
+            result.get("analise_detalhada"), "ok",
+            decisao, nota_sugerida, now, avaliacao_id
+        ))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APRENDIZADO DA IA
+# ─────────────────────────────────────────────────────────────────────────────
+
+def salvar_aprendizado(auditoria_id: int, pratica_num: int, subitem_idx: int,
+                      categoria: str, descricao: str, exemplo: str = ""):
+    """Insere um novo aprendizado no banco para uso futuro da IA."""
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO aprendizados (auditoria_id, pratica_num, subitem_idx, categoria, descricao, exemplo, data_criacao)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (auditoria_id, pratica_num, subitem_idx, categoria, descricao, exemplo, now))
+
+def listar_aprendizados(pratica_num: Optional[int] = None, subitem_idx: Optional[int] = None) -> list[dict]:
+    """Retorna os aprendizados registrados, permitindo filtrar por subitem."""
+    with get_db() as conn:
+        if pratica_num is not None and subitem_idx is not None:
+            rows = conn.execute("""
+                SELECT * FROM aprendizados 
+                WHERE pratica_num=? AND subitem_idx=? 
+                ORDER BY data_criacao DESC LIMIT 10
+            """, (pratica_num, subitem_idx)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT * FROM aprendizados 
+                ORDER BY data_criacao DESC LIMIT 100
+            """).fetchall()
+        return [dict(r) for r in rows]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHAT REVISÃO
+# ─────────────────────────────────────────────────────────────────────────────
+
+def carregar_chat(auditoria_id: int, pratica_num: int, subitem_idx: int) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT * FROM chat_revisao
+            WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
+            ORDER BY timestamp ASC
+        """, (auditoria_id, pratica_num, subitem_idx)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def salvar_mensagem_chat(auditoria_id: int, pratica_num: int, subitem_idx: int,
+                         role: str, conteudo: str,
+                         decisao_snapshot: str = None, nota_snapshot: int = None,
+                         confianca_snapshot: str = None):
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO chat_revisao
+                (auditoria_id, pratica_num, subitem_idx, timestamp, role, conteudo,
+                 decisao_snapshot, nota_snapshot, confianca_snapshot)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, (auditoria_id, pratica_num, subitem_idx, now, role, conteudo,
+              decisao_snapshot, nota_snapshot, confianca_snapshot))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ESTATÍSTICAS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def estatisticas_auditoria(auditoria_id: int) -> dict:
+    with get_db() as conn:
+        row = conn.execute("""
+            SELECT
+                COUNT(*)                                                AS total,
+                SUM(CASE WHEN decisao != 'pendente' AND decisao IS NOT NULL THEN 1 ELSE 0 END) AS avaliados,
+                SUM(CASE WHEN ia_status = 'ok' THEN 1 ELSE 0 END)      AS ia_ok,
+                AVG(CASE WHEN nota_final IS NOT NULL THEN CAST(nota_final AS FLOAT) END) AS media_final,
+                AVG(CAST(nota_self_assessment AS FLOAT))                 AS media_sa
+            FROM avaliacoes WHERE auditoria_id=?
+        """, (auditoria_id,)).fetchone()
+        return dict(row) if row else {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BACKUP (SQLite only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fazer_backup(motivo: str = "auto") -> Optional[str]:
+    if USE_POSTGRES:
+        log.info("Backup skipped — PostgreSQL uses its own backup strategy")
+        return None
+    if not DB_PATH.exists():
+        return None
+    ensure_dirs()
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = BACKUP_DIR / f"auditoria_ta_{motivo}_{ts}.db"
+    shutil.copy2(DB_PATH, dest)
+    backups = sorted(BACKUP_DIR.glob("auditoria_ta_*.db"), key=lambda p: p.stat().st_mtime)
+    while len(backups) > MAX_BACKUPS:
+        backups.pop(0).unlink()
+    return str(dest)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXCLUIR AUDITORIA
+# ─────────────────────────────────────────────────────────────────────────────
+
+def excluir_auditoria(auditoria_id: int):
+    """Remove auditoria e todas as avaliações associadas (CASCADE)."""
+    fazer_backup(motivo="pre_delete")
+    with get_db() as conn:
+        conn.execute("DELETE FROM auditorias WHERE id=?", (auditoria_id,))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DUPLICAR AUDITORIA (NOVO CICLO)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def duplicar_auditoria(auditoria_id: int, novo_ciclo: str) -> Optional[int]:
+    """
+    Duplica uma auditoria para um novo ciclo.
+    Copia a estrutura (práticas/subitens/notas SA) SEM decisões nem análises IA.
+    Retorna o ID da nova auditoria.
+    """
+    with get_db() as conn:
+        origem = conn.execute(
+            "SELECT * FROM auditorias WHERE id=?", (auditoria_id,)
+        ).fetchone()
+        if not origem:
+            return None
+        origem = dict(origem)
+
+        now = datetime.now().isoformat()
+        # Verificar se já existe
+        existing = conn.execute(
+            "SELECT id FROM auditorias WHERE unidade=? AND area=? AND ciclo=?",
+            (origem["unidade"], origem["area"], novo_ciclo)
+        ).fetchone()
+        if existing:
+            return dict(existing)["id"]
+
+        # Criar nova auditoria
+        result = conn.execute("""
+            INSERT INTO auditorias
+                (unidade, area, ciclo, data_criacao, data_atualizacao,
+                 status, assessment_file_path, evidence_folder_path,
+                 openai_api_key, observacoes)
+            VALUES (?,?,?,?,?,'em_andamento',?,?,?,?)
+        """, (
+            origem["unidade"], origem["area"], novo_ciclo,
+            now, now,
+            origem.get("assessment_file_path") or "",
+            origem.get("evidence_folder_path") or "",
+            origem.get("openai_api_key") or "",
+            f"Ciclo duplicado de {origem['ciclo']}"
+        ))
+
+        novo_row = conn.execute(
+            "SELECT id FROM auditorias WHERE unidade=? AND area=? AND ciclo=?",
+            (origem["unidade"], origem["area"], novo_ciclo)
+        ).fetchone()
+        if not novo_row:
+            return None
+        novo_id = dict(novo_row)["id"]
+
+        # Copiar avaliações (apenas estrutura, zerando decisões e IA)
+        avaliacoes = conn.execute(
+            "SELECT * FROM avaliacoes WHERE auditoria_id=?", (auditoria_id,)
+        ).fetchall()
+        for av in avaliacoes:
+            av = dict(av)
+            try:
+                conn.execute("""
+                    INSERT INTO avaliacoes
+                        (auditoria_id, pratica_num, pratica_nome,
+                         subitem_idx, subitem_nome, evidencia_descricao,
+                         nivel_0, nivel_1, nivel_2, nivel_3, nivel_4,
+                         nota_self_assessment, decisao)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,? 'pendente')
+                """, (
+                    novo_id,
+                    av["pratica_num"], av["pratica_nome"],
+                    av["subitem_idx"], av["subitem_nome"],
+                    av.get("evidencia_descricao", ""),
+                    av.get("nivel_0", ""), av.get("nivel_1", ""),
+                    av.get("nivel_2", ""), av.get("nivel_3", ""),
+                    av.get("nivel_4", ""),
+                    av.get("nota_self_assessment"),
+                ))
+            except Exception:
+                pass
+
+        # Registrar no audit log
+        conn.execute("""
+            INSERT INTO audit_log (timestamp, auditoria_id, pratica_num, subitem_idx, campo, valor_antes, valor_depois, usuario)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, (now, novo_id, None, None, "auditoria_criada",
+              None, f"Duplicado de ID={auditoria_id} ciclo={origem['ciclo']}", "sistema"))
+
+        return novo_id
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPARATIVO ENTRE CICLOS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def comparativo_ciclos(auditoria_id_a: int, auditoria_id_b: int) -> list[dict]:
+    """
+    Compara nota_final de dois ciclos, calculando delta e tendência.
+    Retorna lista de dicts com pratica, subitem, nota_a, nota_b, delta, tendencia.
+    """
+    with get_db() as conn:
+        rows_a = conn.execute("""
+            SELECT pratica_num, pratica_nome, subitem_idx, subitem_nome,
+                   nota_final AS nota_a, decisao AS decisao_a
+            FROM avaliacoes WHERE auditoria_id=?
+            ORDER BY pratica_num, subitem_idx
+        """, (auditoria_id_a,)).fetchall()
+
+        rows_b_raw = conn.execute("""
+            SELECT pratica_num, subitem_idx,
+                   nota_final AS nota_b, decisao AS decisao_b
+            FROM avaliacoes WHERE auditoria_id=?
+        """, (auditoria_id_b,)).fetchall()
+
+    # Index B by (pratica_num, subitem_idx)
+    b_map = {}
+    for r in rows_b_raw:
+        r = dict(r)
+        b_map[(r["pratica_num"], r["subitem_idx"])] = r
+
+    result = []
+    for row in rows_a:
+        row = dict(row)
+        key = (row["pratica_num"], row["subitem_idx"])
+        b = b_map.get(key, {})
+        nota_a = row.get("nota_a")
+        nota_b = b.get("nota_b")
+        delta = None
+        tendencia = "—"
+        if nota_a is not None and nota_b is not None:
+            try:
+                delta = int(nota_b) - int(nota_a)
+                if delta > 0:
+                    tendencia = "⬆️ Melhora"
+                elif delta < 0:
+                    tendencia = "⬇️ Piora"
+                else:
+                    tendencia = "➡️ Igual"
+            except (TypeError, ValueError):
+                pass
+        result.append({
+            "pratica_num": row["pratica_num"],
+            "pratica_nome": row.get("pratica_nome", ""),
+            "subitem_idx": row["subitem_idx"],
+            "subitem_nome": row.get("subitem_nome", ""),
+            "nota_a": nota_a,
+            "nota_b": nota_b,
+            "decisao_a": row.get("decisao_a", ""),
+            "decisao_b": b.get("decisao_b", ""),
+            "delta": delta,
+            "tendencia": tendencia,
+        })
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUDIT LOG
+# ─────────────────────────────────────────────────────────────────────────────
+
+def carregar_audit_log(auditoria_id: int = None, limit: int = 200) -> list[dict]:
+    """Retorna os últimos N registros do audit_log."""
+    with get_db() as conn:
+        if auditoria_id:
+            rows = conn.execute("""
+                SELECT * FROM audit_log
+                WHERE auditoria_id=?
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """, (auditoria_id, limit)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT * FROM audit_log
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SYSTEM CONFIG
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_system_config(key: str, default: str = "") -> str:
+    """Retrieve a global system configuration value."""
+    with get_db() as conn:
+        try:
+            row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
+            return row["value"] if row else default
+        except Exception:
+            return default
+
+
+def get_user(email: str) -> Optional[dict]:
+    """Fetch user by email."""
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email=?", (email.lower(),)).fetchone()
+        return dict(row) if row else None
+
+
+def create_user(email: str, password_hash: str, role: str = "auditor"):
+    """Create a new user."""
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (email, password, role) VALUES (?, ?, ?)",
+            (email.lower(), password_hash, role)
+        )
+
+def set_system_config(key: str, value: str):
+    """Saves or updates a global system configuration value."""
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO system_config (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        """, (key, value))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KNOWLEDGE BASE (Base de Conhecimento)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def listar_conhecimento(tag: str = None) -> list[dict]:
+    """Retorna snippets da base de conhecimento."""
+    with get_db() as conn:
+        if tag:
+            rows = conn.execute("SELECT * FROM knowledge_base WHERE tag=? ORDER BY data_criacao DESC", (tag,)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM knowledge_base ORDER BY data_criacao DESC").fetchall()
+        return [dict(r) for r in rows]
+
+def adicionar_conhecimento(titulo: str, conteudo: str, tag: str = "geral", fonte: str = "manual"):
+    """Adiciona um novo snippet de conhecimento."""
+    with get_db() as conn:
+        now = datetime.now().isoformat()
+        conn.execute("""
+            INSERT INTO knowledge_base (titulo, conteudo, tag, fonte, data_criacao)
+            VALUES (?, ?, ?, ?, ?)
+        """, (titulo, conteudo, tag, fonte, now))
+
+def buscar_contexto_relevante(query: str, limit: int = 3) -> str:
+    """
+    Busca simplificada (por palavra-chave no título) para compor contexto.
+    Em uma versão futura, isso usaria embeddings (Vector Search).
+    """
+    with get_db() as conn:
+        # Busca simples por LIKE no título ou conteúdo
+        rows = conn.execute("""
+            SELECT conteudo FROM knowledge_base
+            WHERE titulo LIKE ? OR conteudo LIKE ?
+            LIMIT ?
+        """, (f"%{query}%", f"%{query}%", limit)).fetchall()
+        
+        ctx = [r["conteudo"] for r in rows]
+        return "\n\n---\n\n".join(ctx) if ctx else ""
