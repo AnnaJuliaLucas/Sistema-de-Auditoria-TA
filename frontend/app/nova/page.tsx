@@ -42,7 +42,6 @@ export default function NovaAuditoriaPage() {
                 const blob = await upload(safeName, evidenceFile, {
                     access: 'public',
                     handleUploadUrl: `${window.location.origin}/upload-token`,
-                    multipart: true, // Crucial para arquivos de 200MB
                 });
                 finalEvidenceUrl = blob.url;
             }
