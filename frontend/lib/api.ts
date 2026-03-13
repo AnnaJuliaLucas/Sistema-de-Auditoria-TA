@@ -4,7 +4,7 @@ const API_BASE = typeof window !== 'undefined' && window.location.hostname !== '
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem("audit_token") : null;
-  const headers: Record<string, string> = { 
+  const headers: any = { 
     "Content-Type": "application/json", 
     ...options?.headers 
   };

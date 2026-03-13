@@ -126,7 +126,16 @@ export default function SubitemCard({
                 })
                 .catch(err => {
                     console.error(`❌ Erro ao carregar critérios para ${av.pratica_num}.${av.subitem_idx + 1}:`, err);
-                    setCriterios({ niveis: {}, evidencias_exigidas: "", regras_especiais: "", regras_gerais: "", checklist: { verificar: [], armadilhas: [], nota4: "", regras: [], hard_rule: null } });
+                    setCriterios({ 
+                        pratica: av.pratica_num,
+                        subitem: String(av.subitem_idx + 1),
+                        descricao: av.subitem_nome || "",
+                        niveis: {}, 
+                        evidencias_exigidas: "", 
+                        regras_especiais: "", 
+                        regras_gerais: "", 
+                        checklist: { verificar: [], armadilhas: [], nota4: "", regras: [], hard_rule: null } 
+                    });
                 });
         }
     }, [expanded, av.auditoria_id, av.pratica_num, av.subitem_idx, evidence, criterios]);
