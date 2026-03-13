@@ -25,22 +25,29 @@ try:
 except Exception as e:
     import traceback
     err_msg = traceback.format_exc()
+    str_e = str(e)
     print("FATAL ERROR during Vercel startup:", file=sys.stderr)
     print(err_msg, file=sys.stderr)
     
-    # Em Vercel, se o import falhar, criamos um App falso que só devolve o erro
-    # Assim paramos o Crash 500 silencioso e vemos o erro na tela
-    from fastapi import FastAPI
-    from fastapi.responses import JSONResponse
-    app = FastAPI()
-    
-    @app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE"])
-    async def catch_all(path_name: str):
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Backend failed to import on Vercel",
-                "exception": str(e),
-                "traceback": err_msg
-            }
-        )
+    # Criamos um handler ASGI cru (sem FastAPI) para ter certeza absoluta 
+    # de que vamos imprimir o erro na tela mesmo se o FastAPI faltar
+    import json
+    async def app(scope, receive, send):
+        assert scope['type'] == 'http'
+        body = json.dumps({
+            "error": "Backend failed to import on Vercel",
+            "exception": str_e,
+            "trace": err_msg
+        }).encode("utf-8")
+        
+        await send({
+            'type': 'http.response.start',
+            'status': 500,
+            'headers': [
+                [b'content-type', b'application/json'],
+            ],
+        })
+        await send({
+            'type': 'http.response.body',
+            'body': body,
+        })
