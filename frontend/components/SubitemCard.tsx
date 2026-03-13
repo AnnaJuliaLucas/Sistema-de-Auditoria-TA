@@ -12,7 +12,7 @@ interface SubitemCardProps {
     onSaved: () => void;
     apiKey?: string;
     initialEvidence?: EvidenceData;
-    initialCriteria?: any;
+    initialCriteria?: CriteriosData;
     modoAnalise?: "completo" | "economico";
     aiProvider?: string;
     aiBaseUrl?: string;
@@ -68,7 +68,7 @@ export default function SubitemCard({
     // Evidence & Criteria state
     const [evidence, setEvidence] = useState<EvidenceData | null>(initialEvidence || null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [criterios, setCriterios] = useState<any>(initialCriteria || null);
+    const [criterios, setCriterios] = useState<CriteriosData | null>(initialCriteria || null);
     const [showGallery, setShowGallery] = useState(true);
     const [showCriterios, setShowCriterios] = useState(true);
     const [showDocuments, setShowDocuments] = useState(true); // Nova galeria de documentos
@@ -143,7 +143,7 @@ export default function SubitemCard({
                             regras: [], 
                             hard_rule: null 
                         } 
-                    } as any);
+                    } as CriteriosData);
                 });
         }
     }, [expanded, av.auditoria_id, av.pratica_num, av.subitem_idx, evidence, criterios]);

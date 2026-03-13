@@ -36,7 +36,7 @@ if not BASE_DIR.drive:
 DB_PATH = DADOS_DIR / "auditoria_ta.db"
 
 # Schema version atual — incrementar a cada migração adicionada
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 log = logging.getLogger("auditoria_db")
 
@@ -316,16 +316,25 @@ def _m11_knowledge_base(conn):
     """)
     conn.commit()
 
-@migration(12)
-def _m12_system_config_v2(conn):
-    """Garante que a tabela system_config exista (idempotente)."""
+    conn.commit()
+
+@migration(13)
+def _m13_users_table(conn):
+    """Cria tabela de usuários para autenticação."""
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS system_config (
-            key TEXT PRIMARY KEY,
-            value TEXT
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'auditor'
         )
     """)
     conn.commit()
+
+@migration(14)
+def _m14_placeholder(conn):
+    """Placeholder para sincronizar versão."""
+    pass
 
 def _get_schema_version(conn) -> int:
     """Retorna versão atual do banco (0 se não inicializado)."""
@@ -416,6 +425,13 @@ def _ensure_critical_tables(conn):
         );
         CREATE INDEX IF NOT EXISTS idx_aprendizados_pratica
             ON aprendizados(pratica_num, subitem_idx);
+
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'auditor'
+        );
     """)
     conn.commit()
 

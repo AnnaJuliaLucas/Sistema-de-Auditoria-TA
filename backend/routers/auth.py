@@ -75,7 +75,9 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Usuário não encontrado. Por favor, realize o primeiro acesso."
         )
 
+    print(f"DEBUG LOGIN: Email={email}, PassLen={len(form_data.password)}")
     if not verify_password(form_data.password, user["password"]):
+        print(f"DEBUG LOGIN: Verify failed for {email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Senha incorreta",

@@ -50,8 +50,19 @@ export default function Sidebar() {
             </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-700/50">
-                <div className="text-xs text-slate-500 text-center">
+            <div className="p-4 border-t border-slate-700/50 space-y-4">
+                <button
+                    onClick={() => {
+                        localStorage.removeItem("audit_token");
+                        localStorage.removeItem("audit_user");
+                        window.location.href = "/login";
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                >
+                    <span className="text-lg">🚪</span>
+                    Sair do Sistema
+                </button>
+                <div className="text-[10px] text-slate-500 text-center font-medium opacity-50 uppercase tracking-widest">
                     v2.0 — Next.js + FastAPI
                 </div>
             </div>
