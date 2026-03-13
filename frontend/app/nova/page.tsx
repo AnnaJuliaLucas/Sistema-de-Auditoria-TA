@@ -11,7 +11,7 @@ export default function NovaAuditoriaPage() {
     const [area, setArea] = useState("");
     const [ciclo, setCiclo] = useState(new Date().getFullYear().toString());
     const [assessmentFile, setAssessmentFile] = useState<File | null>(null);
-    const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+    const [evidenceUrl, setEvidenceUrl] = useState("");
     const [modoAnalise, setModoAnalise] = useState<"completo" | "economico">("completo");
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -27,6 +27,14 @@ export default function NovaAuditoriaPage() {
             setError("Preencha todos os campos obrigatórios");
             return;
         }
+        
+        // Vercel Serverless Functions Payload Limit is 4.5 MB.
+        const maxFileSize = 4 * 1024 * 1024; // 4MB
+        if (assessmentFile && assessmentFile.size > maxFileSize) {
+            setError("A planilha do Assessment excede o limite de 4MB.");
+            return;
+        }
+
         setCreating(true);
         setError(null);
         try {
@@ -39,8 +47,8 @@ export default function NovaAuditoriaPage() {
             if (assessmentFile) {
                 formData.append("assessment_file", assessmentFile);
             }
-            if (evidenceFile) {
-                formData.append("evidence_zip", evidenceFile);
+            if (evidenceUrl) {
+                formData.append("evidence_url", evidenceUrl);
             }
 
             const data = await api.criarAuditoria(formData);
@@ -115,17 +123,15 @@ export default function NovaAuditoriaPage() {
                     </div>
                 </div>
 
-                {/* Evidence Zip */}
+                {/* Evidence URL */}
                 <div className="space-y-2">
                     <label className="flex items-center text-sm font-semibold text-slate-300 ml-1">
-                        <span className="mr-2">📦</span> Pasta de Evidências (Arquivo .ZIP)
+                        <span className="mr-2">🔗</span> Link da Pasta de Evidências (OneDrive/Drive)
                     </label>
                     <div className="flex gap-3">
-                        <input type="file" accept=".zip" onChange={e => {
-                                const file = e.target.files?.[0];
-                                if (file) setEvidenceFile(file);
-                            }}
-                            className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                        <input type="url" value={evidenceUrl} onChange={e => setEvidenceUrl(e.target.value)}
+                            className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all hover:bg-slate-800"
+                            placeholder="https://..."
                         />
                     </div>
                 </div>

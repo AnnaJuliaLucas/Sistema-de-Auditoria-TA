@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, Auditoria, ESCALA, DECISAO_CONFIG } from "@/lib/api";
+import { api, Auditoria, ESCALA, DECISAO_CONFIG, API_BASE } from "@/lib/api";
 import NotaBadge from "@/components/NotaBadge";
 import Link from "next/link";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface ResumoGeral {
     total_auditorias: number;
