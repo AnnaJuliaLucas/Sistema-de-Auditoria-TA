@@ -67,7 +67,8 @@ export default function SubitemCard({
 
     // Evidence & Criteria state
     const [evidence, setEvidence] = useState<EvidenceData | null>(initialEvidence || null);
-    const [criterios, setCriterios] = useState<CriteriosData | null>(initialCriteria || null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [criterios, setCriterios] = useState<any>(initialCriteria || null);
     const [showGallery, setShowGallery] = useState(true);
     const [showCriterios, setShowCriterios] = useState(true);
     const [showDocuments, setShowDocuments] = useState(true); // Nova galeria de documentos
