@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
-const nextConfig: any = {
-  output: "standalone",
+const nextConfig: NextConfig = {
   typescript: {
-    // !! ATENÇÃO: Ignorando erros para garantir que o deploy passe agora !!
+    // Mantendo ignorar erros temporariamente para garantir que o deploy passe hoje
     ignoreBuildErrors: true,
   },
   eslint: {
