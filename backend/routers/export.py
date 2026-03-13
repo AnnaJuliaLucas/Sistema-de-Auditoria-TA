@@ -21,7 +21,11 @@ if _parent not in sys.path:
 router = APIRouter(prefix="/api", tags=["export"])
 
 # Diretório base para os uploads na nuvem
-UPLOAD_DIR = Path("data/uploads")
+IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+if IS_VERCEL:
+    UPLOAD_DIR = Path("/tmp/AuditoriaTA/uploads")
+else:
+    UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/auditorias")
