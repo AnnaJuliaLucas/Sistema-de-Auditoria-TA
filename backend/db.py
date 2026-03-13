@@ -21,13 +21,22 @@ log = logging.getLogger("auditoria_db")
 # ─────────────────────────────────────────────────────────────────────────────
 # DATABASE MODE DETECTION
 # ─────────────────────────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-USE_POSTGRES = DATABASE_URL.startswith("postgresql")
+# Check multiple possible env vars for PostgreSQL (Vercel Integration / Manual)
+DATABASE_URL = (
+    os.environ.get("DATABASE_URL") or 
+    os.environ.get("POSTGRES_URL") or 
+    os.environ.get("NEON_DATABASE_URL") or 
+    ""
+)
+USE_POSTGRES = DATABASE_URL.startswith("postgresql") or DATABASE_URL.startswith("postgres")
 
 if USE_POSTGRES:
     import psycopg2
     import psycopg2.extras
-    log.info(f"Using PostgreSQL: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'configured'}")
+    # Mask password for safe logging
+    url_parts = DATABASE_URL.split("@")
+    masked_url = url_parts[-1] if len(url_parts) > 1 else "configured"
+    log.info(f"Using PostgreSQL: {masked_url}")
 else:
     import sqlite3
     # PATH CONFIGURATION — same location as original database.py
@@ -92,16 +101,22 @@ def get_db():
 
 
 class PgCursorWrapper:
-    """Wraps psycopg2 connection to provide sqlite3.Row-like dict access via RealDictCursor."""
+    """Wraps psycopg2 connection to provide sqlite3.Row-like dict access."""
     def __init__(self, conn):
         self._conn = conn
 
     def execute(self, sql, params=None):
         # Convert ? placeholders to %s for PostgreSQL
         sql = sql.replace("?", "%s")
+        # Optimization: We keep the cursor open for the wrapper
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(sql, params)
-        return PgResultWrapper(cur)
+        try:
+            cur.execute(sql, params)
+            return PgResultWrapper(cur)
+        except Exception as e:
+            cur.close()
+            log.error(f"PostgreSQL Execute Error: {e} | SQL: {sql[:100]}...")
+            raise
 
     def commit(self):
         self._conn.commit()
@@ -111,29 +126,41 @@ class PgCursorWrapper:
 
 
 class PgResultWrapper:
-    """Makes psycopg2 cursor results look like sqlite3 results."""
+    """Makes psycopg2 cursor results look like sqlite3 results and ensures closure."""
     def __init__(self, cursor):
         self._cursor = cursor
         self.lastrowid = None
-        try:
-            if cursor.description and cursor.statusmessage.startswith("INSERT"):
-                # Try to get last inserted id
-                try:
-                    cursor.execute("SELECT lastval()")
-                    row = cursor.fetchone()
-                    self.lastrowid = row["lastval"] if row else None
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        
+        # In Postgres, we usually use RETURNING id or lastval()
+        if cursor.description:
+            try:
+                if cursor.statusmessage and cursor.statusmessage.startswith("INSERT"):
+                    # This is slightly expensive but keeps logic compatible with sqlite lastrowid
+                    self._cursor.execute("SELECT lastval()")
+                    row = self._cursor.fetchone()
+                    if row:
+                        self.lastrowid = list(row.values())[0] if isinstance(row, dict) else row[0]
+            except Exception:
+                pass
 
     def fetchone(self):
-        row = self._cursor.fetchone()
-        return dict(row) if row else None
+        try:
+            row = self._cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            # We don't close here because user might fetch multiple times 
+            # (though fetchone is usually once)
+            pass
 
     def fetchall(self):
-        rows = self._cursor.fetchall()
-        return [dict(r) for r in rows]
+        try:
+            rows = self._cursor.fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            self._cursor.close()
+
+    def __iter__(self):
+        return iter(self.fetchall())
 
 
 def _safe_int(v):
