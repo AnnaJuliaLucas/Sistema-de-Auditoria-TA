@@ -126,16 +126,23 @@ export default function SubitemCard({
                 })
                 .catch(err => {
                     console.error(`❌ Erro ao carregar critérios para ${av.pratica_num}.${av.subitem_idx + 1}:`, err);
+                    // RE-FIX V2: Garantindo todos os campos e tipos corretos para o TypeScript
                     setCriterios({ 
-                        pratica: av.pratica_num,
+                        pratica: String(av.pratica_num),
                         subitem: String(av.subitem_idx + 1),
                         descricao: av.subitem_nome || "",
                         niveis: {}, 
                         evidencias_exigidas: "", 
                         regras_especiais: "", 
                         regras_gerais: "", 
-                        checklist: { verificar: [], armadilhas: [], nota4: "", regras: [], hard_rule: null } 
-                    });
+                        checklist: { 
+                            verificar: [] as string[], 
+                            armadilhas: [] as string[], 
+                            nota4: "", 
+                            regras: [] as string[], 
+                            hard_rule: null 
+                        } 
+                    } as CriteriosData);
                 });
         }
     }, [expanded, av.auditoria_id, av.pratica_num, av.subitem_idx, evidence, criterios]);
