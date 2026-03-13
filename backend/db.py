@@ -813,7 +813,7 @@ def set_system_config(key: str, value: str):
         conn.execute("""
             INSERT INTO system_config (key, value)
             VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
         """, (key, value))
 
 # ─────────────────────────────────────────────────────────────────────────────

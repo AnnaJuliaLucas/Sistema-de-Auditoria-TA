@@ -13,6 +13,8 @@ if str(root_path) not in sys.path:
 try:
     print(f"DEBUG: Vercel startup. Root path: {root_path}", file=sys.stderr)
     from backend.main import app
+    from backend.db import init_db
+    init_db()  # Force database initialization unconditionally on cold start
 except Exception as e:
     import traceback
     print("FATAL ERROR during Vercel startup:", file=sys.stderr)
