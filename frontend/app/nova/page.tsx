@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { upload } from '@vercel/blob/client';
 
 export default function NovaAuditoriaPage() {
     const router = useRouter();
@@ -11,6 +12,7 @@ export default function NovaAuditoriaPage() {
     const [area, setArea] = useState("");
     const [ciclo, setCiclo] = useState(new Date().getFullYear().toString());
     const [assessmentFile, setAssessmentFile] = useState<File | null>(null);
+    const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
     const [evidenceUrl, setEvidenceUrl] = useState("");
     const [modoAnalise, setModoAnalise] = useState<"completo" | "economico">("completo");
     const [creating, setCreating] = useState(false);
@@ -27,28 +29,41 @@ export default function NovaAuditoriaPage() {
             setError("Preencha todos os campos obrigatórios");
             return;
         }
-        
-        // Vercel Serverless Functions Payload Limit is 4.5 MB.
-        const maxFileSize = 4 * 1024 * 1024; // 4MB
-        if (assessmentFile && assessmentFile.size > maxFileSize) {
-            setError("A planilha do Assessment excede o limite de 4MB.");
-            return;
-        }
 
         setCreating(true);
         setError(null);
         try {
+            let finalEvidenceUrl = evidenceUrl;
+            let finalAssessmentUrl = "";
+
+            // Vercel Blob: Faz o upload direto na nuvem pelo navegador!
+            if (evidenceFile) {
+                const blob = await upload(evidenceFile.name, evidenceFile, {
+                    access: 'public',
+                    handleUploadUrl: '/api/upload',
+                });
+                finalEvidenceUrl = blob.url;
+            }
+
+            if (assessmentFile) {
+                const blob = await upload(assessmentFile.name, assessmentFile, {
+                    access: 'public',
+                    handleUploadUrl: '/api/upload',
+                });
+                finalAssessmentUrl = blob.url;
+            }
+
             const formData = new FormData();
             formData.append("unidade", unidade);
             formData.append("area", area);
             formData.append("ciclo", ciclo);
             formData.append("modo_analise", modoAnalise);
             
-            if (assessmentFile) {
-                formData.append("assessment_file", assessmentFile);
+            if (finalAssessmentUrl) {
+                formData.append("assessment_url", finalAssessmentUrl);
             }
-            if (evidenceUrl) {
-                formData.append("evidence_url", evidenceUrl);
+            if (finalEvidenceUrl) {
+                formData.append("evidence_url", finalEvidenceUrl);
             }
 
             const data = await api.criarAuditoria(formData);
@@ -56,7 +71,7 @@ export default function NovaAuditoriaPage() {
                 router.push(`/auditar/${data.id}`);
             }
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Erro de conexão");
+            setError(e instanceof Error ? e.message : "Erro ao enviar arquivos pesados para a nuvem");
         } finally {
             setCreating(false);
         }
@@ -123,15 +138,30 @@ export default function NovaAuditoriaPage() {
                     </div>
                 </div>
 
-                {/* Evidence URL */}
+                {/* Evidence Zip */}
                 <div className="space-y-2">
                     <label className="flex items-center text-sm font-semibold text-slate-300 ml-1">
-                        <span className="mr-2">🔗</span> Link da Pasta de Evidências (OneDrive/Drive)
+                        <span className="mr-2">📦</span> Pasta de Evidências (Arquivo .ZIP)
+                    </label>
+                    <div className="flex gap-3">
+                        <input type="file" accept=".zip" onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) setEvidenceFile(file);
+                            }}
+                            className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                        />
+                    </div>
+                </div>
+
+                {/* Evidence URL Backup */}
+                <div className="space-y-2">
+                    <label className="flex items-center text-xs font-semibold text-slate-500 ml-1">
+                        ...ou informe um Link do Drive (opcional)
                     </label>
                     <div className="flex gap-3">
                         <input type="url" value={evidenceUrl} onChange={e => setEvidenceUrl(e.target.value)}
                             className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all hover:bg-slate-800"
-                            placeholder="https://..."
+                            placeholder="https://sua-empresa.sharepoint.com/..."
                         />
                     </div>
                 </div>

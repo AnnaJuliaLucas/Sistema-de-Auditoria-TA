@@ -45,18 +45,23 @@ export default function DashboardPage() {
             fetch(`${API_BASE}/api/dashboard/distribuicao-decisoes/${selectedId}`).then(r => r.json()),
             fetch(`${API_BASE}/api/dashboard/media-por-pratica/${selectedId}`).then(r => r.json()),
         ]).then(([res, notas, decisoes, medias]) => {
-            setResumo(res);
-            setDistNotas(notas);
-            setDistDecisoes(decisoes);
-            setPraticaMedias(medias);
-        });
+            setResumo(res?.detail ? null : res);
+            setDistNotas(Array.isArray(notas) ? notas : []);
+            setDistDecisoes(Array.isArray(decisoes) ? decisoes : []);
+            setPraticaMedias(Array.isArray(medias) ? medias : []);
+        }).catch(console.error);
     }, [selectedId]);
 
     if (loading) return <div className="flex items-center justify-center h-64"><div className="text-4xl animate-pulse">📊</div></div>;
 
     const aud = auditorias.find(a => a.id === selectedId);
-    const maxNotaCount = Math.max(...distNotas.map(d => d.count), 1);
-    const maxDecCount = Math.max(...distDecisoes.map(d => d.count), 1);
+    
+    const safeDistNotas = Array.isArray(distNotas) ? distNotas : [];
+    const safeDistDecisoes = Array.isArray(distDecisoes) ? distDecisoes : [];
+    const safePraticaMedias = Array.isArray(praticaMedias) ? praticaMedias : [];
+
+    const maxNotaCount = Math.max(...safeDistNotas.map(d => d.count), 1);
+    const maxDecCount = Math.max(...safeDistDecisoes.map(d => d.count), 1);
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -95,7 +100,7 @@ export default function DashboardPage() {
                     <h3 className="text-lg font-semibold text-white mb-4">📊 Distribuição de Notas</h3>
                     <div className="space-y-3">
                         {[0, 1, 2, 3, 4].map(nota => {
-                            const item = distNotas.find(d => d.nota_final === nota);
+                            const item = safeDistNotas.find(d => d.nota_final === nota);
                             const count = item?.count ?? 0;
                             const info = ESCALA[nota];
                             const pct = maxNotaCount > 0 ? (count / maxNotaCount) * 100 : 0;
@@ -120,7 +125,7 @@ export default function DashboardPage() {
                     <h3 className="text-lg font-semibold text-white mb-4">📋 Distribuição de Decisões</h3>
                     <div className="space-y-3">
                         {Object.entries(DECISAO_CONFIG).map(([key, cfg]) => {
-                            const item = distDecisoes.find(d => d.decisao === key);
+                            const item = safeDistDecisoes.find(d => d.decisao === key);
                             const count = item?.count ?? 0;
                             const pct = maxDecCount > 0 ? (count / maxDecCount) * 100 : 0;
                             return (
@@ -155,7 +160,7 @@ export default function DashboardPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {praticaMedias.map(p => (
+                            {safePraticaMedias.map(p => (
                                 <tr key={p.pratica_num} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
                                     <td className="py-3 px-4 text-white font-medium">
                                         {p.pratica_num}. {p.pratica_nome}

@@ -37,6 +37,8 @@ async def criar_auditoria(
     observacoes: str = Form(""),
     modo_analise: str = Form("completo"),
     assessment_file: UploadFile = File(None),
+    assessment_url: str = Form(""),
+    evidence_zip: UploadFile = File(None),
     evidence_url: str = Form("")
 ):
     """Create a new audit, supporting cloud uploads."""
@@ -71,7 +73,7 @@ async def criar_auditoria(
     audit_dir = UPLOAD_DIR / str(audit_id)
     audit_dir.mkdir(parents=True, exist_ok=True)
     
-    assessment_path = ""
+    assessment_path = assessment_url.strip() if assessment_url else ""
     evidence_path = evidence_url.strip() if evidence_url else ""
     
     if assessment_file and assessment_file.filename:
@@ -80,6 +82,23 @@ async def criar_auditoria(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(assessment_file.file, buffer)
         assessment_path = str(file_path.absolute())
+    
+    if evidence_zip and evidence_zip.filename:
+        # Save and extract zip file
+        zip_path = audit_dir / f"evidences_{audit_id}.zip"
+        with open(zip_path, "wb") as buffer:
+            shutil.copyfileobj(evidence_zip.file, buffer)
+            
+        # Extract folder
+        extract_dir = audit_dir / "evidences"
+        extract_dir.mkdir(exist_ok=True)
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            evidence_path = str(extract_dir.absolute())
+        except Exception as e:
+            print(f"Failed to extract zip: {e}")
+            evidence_path = str(extract_dir.absolute())
             
     # Update audit record with actual paths
     if assessment_path or evidence_path:

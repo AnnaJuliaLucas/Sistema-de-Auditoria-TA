@@ -5,9 +5,16 @@ export const API_BASE = typeof window !== 'undefined' && window.location.hostnam
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem("audit_token") : null;
   const headers: any = { 
-    "Content-Type": "application/json", 
     ...options?.headers 
   };
+  
+  if (!(options?.body instanceof FormData)) {
+    if (!headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+  } else {
+    delete headers["Content-Type"];
+  }
   
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
