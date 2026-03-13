@@ -2,8 +2,6 @@
 routers/utils.py — Utility endpoints for native UI interactions.
 """
 from fastapi import APIRouter, HTTPException
-import tkinter as tk
-from tkinter import filedialog
 import threading
 import logging
 
@@ -11,6 +9,12 @@ log = logging.getLogger("auditoria_utils")
 router = APIRouter(prefix="/api/utils", tags=["utils"])
 
 def _pick_file():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError:
+        return ""
+        
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
@@ -22,6 +26,12 @@ def _pick_file():
     return file_path
 
 def _pick_folder():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError:
+        return ""
+        
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
