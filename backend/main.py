@@ -36,11 +36,13 @@ app = FastAPI(
 async def global_exception_handler(request: Request, exc: Exception):
     err_trace = traceback.format_exc()
     log.error(f"GLOBAL ERROR: {err_trace}")
+    # Return more detail during debugging phase
     return JSONResponse(
         status_code=500,
         content={
-            "detail": f"Erro Interno: {str(exc)}",
-            "traceback_snippet": err_trace[-500:] 
+            "detail": str(exc),
+            "type": type(exc).__name__,
+            "traceback": err_trace
         }
     )
 
