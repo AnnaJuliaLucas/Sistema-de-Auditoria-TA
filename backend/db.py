@@ -31,12 +31,13 @@ DATABASE_URL = (
 USE_POSTGRES = DATABASE_URL.startswith("postgresql") or DATABASE_URL.startswith("postgres")
 
 if USE_POSTGRES:
-    import psycopg2
-    import psycopg2.extras
     # Mask password for safe logging
-    url_parts = DATABASE_URL.split("@")
-    masked_url = url_parts[-1] if len(url_parts) > 1 else "configured"
-    log.info(f"Using PostgreSQL: {masked_url}")
+    try:
+        url_parts = DATABASE_URL.split("@")
+        masked_url = url_parts[-1] if len(url_parts) > 1 else "configured"
+        log.info(f"Using PostgreSQL: {masked_url}")
+    except Exception:
+        log.info("Using PostgreSQL: (masked due to error)")
 else:
     import sqlite3
     # PATH CONFIGURATION — same location as original database.py
@@ -63,6 +64,7 @@ def ensure_dirs():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _pg_connect():
+    import psycopg2
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
@@ -172,8 +174,6 @@ def _safe_int(v):
         return int(v)
     except (TypeError, ValueError):
         return None
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # INIT
 # ─────────────────────────────────────────────────────────────────────────────
@@ -194,130 +194,134 @@ def init_db():
 
 def _init_postgres():
     """Create tables in PostgreSQL if they don't exist."""
-    conn = _pg_connect()
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS auditorias (
-            id SERIAL PRIMARY KEY,
-            unidade TEXT NOT NULL,
-            area TEXT NOT NULL,
-            ciclo TEXT NOT NULL,
-            data_criacao TEXT,
-            data_atualizacao TEXT,
-            status TEXT DEFAULT 'em_andamento',
-            assessment_file_path TEXT DEFAULT '',
-            evidence_folder_path TEXT DEFAULT '',
-            openai_api_key TEXT DEFAULT '',
-            ai_provider TEXT DEFAULT 'openai',
-            ai_base_url TEXT DEFAULT '',
-            modo_analise TEXT DEFAULT 'completo',
-            observacoes TEXT DEFAULT '',
-            UNIQUE(unidade, area, ciclo)
-        );
+    try:
+        conn = _pg_connect()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS auditorias (
+                id SERIAL PRIMARY KEY,
+                unidade TEXT NOT NULL,
+                area TEXT NOT NULL,
+                ciclo TEXT NOT NULL,
+                data_criacao TEXT,
+                data_atualizacao TEXT,
+                status TEXT DEFAULT 'em_andamento',
+                assessment_file_path TEXT DEFAULT '',
+                evidence_folder_path TEXT DEFAULT '',
+                openai_api_key TEXT DEFAULT '',
+                ai_provider TEXT DEFAULT 'openai',
+                ai_base_url TEXT DEFAULT '',
+                modo_analise TEXT DEFAULT 'completo',
+                observacoes TEXT DEFAULT '',
+                UNIQUE(unidade, area, ciclo)
+            );
 
-        CREATE TABLE IF NOT EXISTS avaliacoes (
-            id SERIAL PRIMARY KEY,
-            auditoria_id INTEGER REFERENCES auditorias(id) ON DELETE CASCADE,
-            pratica_num INTEGER,
-            pratica_nome TEXT,
-            subitem_idx INTEGER,
-            subitem_nome TEXT,
-            evidencia_descricao TEXT DEFAULT '',
-            nivel_0 TEXT DEFAULT '',
-            nivel_1 TEXT DEFAULT '',
-            nivel_2 TEXT DEFAULT '',
-            nivel_3 TEXT DEFAULT '',
-            nivel_4 TEXT DEFAULT '',
-            nota_self_assessment INTEGER,
-            decisao TEXT DEFAULT 'pendente',
-            nota_final INTEGER,
-            descricao_nc TEXT DEFAULT '',
-            comentarios TEXT DEFAULT '',
-            ia_decisao TEXT,
-            ia_nota_sugerida INTEGER,
-            ia_confianca TEXT,
-            ia_pontos_atendidos TEXT,
-            ia_pontos_faltantes TEXT,
-            ia_analise_detalhada TEXT,
-            ia_status TEXT,
-            data_atualizacao TEXT
-        );
+            CREATE TABLE IF NOT EXISTS avaliacoes (
+                id SERIAL PRIMARY KEY,
+                auditoria_id INTEGER REFERENCES auditorias(id) ON DELETE CASCADE,
+                pratica_num INTEGER,
+                pratica_nome TEXT,
+                subitem_idx INTEGER,
+                subitem_nome TEXT,
+                evidencia_descricao TEXT DEFAULT '',
+                nivel_0 TEXT DEFAULT '',
+                nivel_1 TEXT DEFAULT '',
+                nivel_2 TEXT DEFAULT '',
+                nivel_3 TEXT DEFAULT '',
+                nivel_4 TEXT DEFAULT '',
+                nota_self_assessment INTEGER,
+                decisao TEXT DEFAULT 'pendente',
+                nota_final INTEGER,
+                descricao_nc TEXT DEFAULT '',
+                comentarios TEXT DEFAULT '',
+                ia_decisao TEXT,
+                ia_nota_sugerida INTEGER,
+                ia_confianca TEXT,
+                ia_pontos_atendidos TEXT,
+                ia_pontos_faltantes TEXT,
+                ia_analise_detalhada TEXT,
+                ia_status TEXT,
+                data_atualizacao TEXT
+            );
 
-        CREATE TABLE IF NOT EXISTS audit_log (
-            id SERIAL PRIMARY KEY,
-            timestamp TEXT,
-            auditoria_id INTEGER,
-            pratica_num INTEGER,
-            subitem_idx INTEGER,
-            campo TEXT,
-            valor_antes TEXT,
-            valor_depois TEXT,
-            usuario TEXT DEFAULT 'auditor'
-        );
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id SERIAL PRIMARY KEY,
+                timestamp TEXT,
+                auditoria_id INTEGER,
+                pratica_num INTEGER,
+                subitem_idx INTEGER,
+                campo TEXT,
+                valor_antes TEXT,
+                valor_depois TEXT,
+                usuario TEXT DEFAULT 'auditor'
+            );
 
-        CREATE TABLE IF NOT EXISTS chat_revisao (
-            id SERIAL PRIMARY KEY,
-            auditoria_id INTEGER,
-            pratica_num INTEGER,
-            subitem_idx INTEGER,
-            timestamp TEXT,
-            role TEXT,
-            conteudo TEXT,
-            decisao_snapshot TEXT,
-            nota_snapshot INTEGER,
-            confianca_snapshot TEXT
-        );
+            CREATE TABLE IF NOT EXISTS chat_revisao (
+                id SERIAL PRIMARY KEY,
+                auditoria_id INTEGER,
+                pratica_num INTEGER,
+                subitem_idx INTEGER,
+                timestamp TEXT,
+                role TEXT,
+                conteudo TEXT,
+                decisao_snapshot TEXT,
+                nota_snapshot INTEGER,
+                confianca_snapshot TEXT
+            );
 
-        CREATE TABLE IF NOT EXISTS diario_auditoria (
-            id SERIAL PRIMARY KEY,
-            auditoria_id INTEGER,
-            data_entrada TEXT,
-            tipo TEXT DEFAULT 'observacao',
-            titulo TEXT DEFAULT '',
-            conteudo TEXT DEFAULT '',
-            pratica_ref TEXT DEFAULT '',
-            prioridade TEXT DEFAULT 'normal',
-            resolvido INTEGER DEFAULT 0,
-            data_criacao TEXT,
-            data_atualizacao TEXT
-        );
+            CREATE TABLE IF NOT EXISTS diario_auditoria (
+                id SERIAL PRIMARY KEY,
+                auditoria_id INTEGER,
+                data_entrada TEXT,
+                tipo TEXT DEFAULT 'observacao',
+                titulo TEXT DEFAULT '',
+                conteudo TEXT DEFAULT '',
+                pratica_ref TEXT DEFAULT '',
+                prioridade TEXT DEFAULT 'normal',
+                resolvido INTEGER DEFAULT 0,
+                data_criacao TEXT,
+                data_atualizacao TEXT
+            );
 
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL,
-            role TEXT DEFAULT 'auditor'
-        );
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                password TEXT NOT NULL,
+                role TEXT DEFAULT 'auditor'
+            );
 
-        CREATE TABLE IF NOT EXISTS aprendizados (
-            id SERIAL PRIMARY KEY,
-            auditoria_id INTEGER,
-            pratica_num INTEGER,
-            subitem_idx INTEGER,
-            categoria TEXT,
-            descricao TEXT,
-            exemplo TEXT,
-            data_criacao TEXT
-        );
+            CREATE TABLE IF NOT EXISTS aprendizados (
+                id SERIAL PRIMARY KEY,
+                auditoria_id INTEGER,
+                pratica_num INTEGER,
+                subitem_idx INTEGER,
+                categoria TEXT,
+                descricao TEXT,
+                exemplo TEXT,
+                data_criacao TEXT
+            );
 
-        CREATE TABLE IF NOT EXISTS snapshots_nota (
-            id SERIAL PRIMARY KEY,
-            auditoria_id INTEGER,
-            pratica_num INTEGER,
-            subitem_idx INTEGER,
-            timestamp TEXT,
-            nota INTEGER,
-            origem TEXT
-        );
+            CREATE TABLE IF NOT EXISTS snapshots_nota (
+                id SERIAL PRIMARY KEY,
+                auditoria_id INTEGER,
+                pratica_num INTEGER,
+                subitem_idx INTEGER,
+                timestamp TEXT,
+                nota INTEGER,
+                origem TEXT
+            );
 
-        CREATE TABLE IF NOT EXISTS system_config (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-    """)
-    conn.commit()
-    conn.close()
-    log.info("PostgreSQL tables created/verified")
+            CREATE TABLE IF NOT EXISTS system_config (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        log.info("✅ PostgreSQL tables created/verified")
+    except Exception as e:
+        log.error(f"❌ Error in _init_postgres: {e}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

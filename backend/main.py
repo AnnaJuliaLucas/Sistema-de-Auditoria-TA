@@ -18,9 +18,13 @@ import traceback
 async def lifespan(app: FastAPI):
     """Startup: initialize database."""
     log.info("🚀 Iniciando Sistema de Auditoria TA — Backend API")
-    from backend.db import init_db
-    init_db()
-    log.info("✅ Banco de dados inicializado")
+    try:
+        from backend.db import init_db
+        init_db()
+        log.info("✅ Banco de dados inicializado")
+    except Exception as e:
+        log.error(f"❌ FALHA NA INICIALIZAÇÃO DO BANCO: {e}")
+        # We don't reraise to allow the app to boot and show errors on health check/routes
     yield
     log.info("🛑 Backend encerrado")
 
@@ -82,7 +86,9 @@ from backend.routers.dados import router as dados_router
 from backend.routers.utils import router as utils_router
 from backend.routers.config import router as config_router
 from backend.routers.auth import router as auth_router
+from backend.routers.debug import router as debug_router
 
+app.include_router(debug_router)
 app.include_router(auth_router)
 app.include_router(auditorias_router)
 app.include_router(avaliacoes_router)

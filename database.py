@@ -15,7 +15,6 @@ Responsabilidades:
 import sqlite3
 import shutil
 import json
-import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import logging
@@ -232,9 +231,6 @@ def _m4_notas_historico(conn):
         FOREIGN KEY (auditoria_id) REFERENCES auditorias(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_snap_aud ON snapshots_nota(auditoria_id);
-
-    -- Adicionar coluna 'observacoes' em auditorias (caso ainda não exista)
-    -- SQLite não tem IF NOT EXISTS em ALTER TABLE, então usamos try/except via Python
     """)
     # Adicionar colunas extras em auditorias sem quebrar se já existirem
     for col_def in [
@@ -512,8 +508,9 @@ def restaurar_backup(backup_path: Path) -> bool:
 # CRUD — AUDITORIAS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def listar_auditorias() -> pd.DataFrame:
+def listar_auditorias():
     """Retorna todas as auditorias, com contagem de itens avaliados."""
+    import pandas as pd
     conn = get_db()
     try:
         df = pd.read_sql_query("""
