@@ -10,8 +10,8 @@ export default function NovaAuditoriaPage() {
     const [unidade, setUnidade] = useState("");
     const [area, setArea] = useState("");
     const [ciclo, setCiclo] = useState(new Date().getFullYear().toString());
-    const [assessmentPath, setAssessmentPath] = useState("");
-    const [evidencePath, setEvidencePath] = useState("");
+    const [assessmentFile, setAssessmentFile] = useState<File | null>(null);
+    const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
     const [modoAnalise, setModoAnalise] = useState<"completo" | "economico">("completo");
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -22,24 +22,6 @@ export default function NovaAuditoriaPage() {
 
     const areas = unidade ? (unidadesAreas[unidade] || []) : [];
 
-    async function handlePickFile() {
-        try {
-            const res = await api.pickFile();
-            if (res.path) setAssessmentPath(res.path);
-        } catch (e) {
-            console.error("Erro ao selecionar arquivo", e);
-        }
-    }
-
-    async function handlePickFolder() {
-        try {
-            const res = await api.pickFolder();
-            if (res.path) setEvidencePath(res.path);
-        } catch (e) {
-            console.error("Erro ao selecionar pasta", e);
-        }
-    }
-
     async function handleCreate() {
         if (!unidade || !area || !ciclo) {
             setError("Preencha todos os campos obrigatórios");
@@ -48,11 +30,20 @@ export default function NovaAuditoriaPage() {
         setCreating(true);
         setError(null);
         try {
-            const data = await api.criarAuditoria({
-                unidade, area, ciclo,
-                assessment_file_path: assessmentPath,
-                evidence_folder_path: evidencePath,
-            });
+            const formData = new FormData();
+            formData.append("unidade", unidade);
+            formData.append("area", area);
+            formData.append("ciclo", ciclo);
+            formData.append("modo_analise", modoAnalise);
+            
+            if (assessmentFile) {
+                formData.append("assessment_file", assessmentFile);
+            }
+            if (evidenceFile) {
+                formData.append("evidence_zip", evidenceFile);
+            }
+
+            const data = await api.criarAuditoria(formData);
             if (data.ok && data.id) {
                 router.push(`/auditar/${data.id}`);
             }
@@ -109,35 +100,33 @@ export default function NovaAuditoriaPage() {
 
                 <div className="h-px bg-slate-800/50 w-full" />
 
-                {/* Assessment Path */}
+                {/* Assessment File */}
                 <div className="space-y-2">
                     <label className="flex items-center text-sm font-semibold text-slate-300 ml-1">
                         <span className="mr-2">📄</span> Arquivo de Assessment (Excel)
                     </label>
                     <div className="flex gap-3">
-                        <input type="text" value={assessmentPath} onChange={e => setAssessmentPath(e.target.value)}
-                            className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
-                            placeholder="C:\caminho\para\assessment.xlsx" />
-                        <button type="button" onClick={handlePickFile}
-                            className="px-6 bg-slate-700 hover:bg-slate-600 text-white rounded-2xl transition-all font-medium text-sm flex items-center shadow-lg border border-white/5">
-                            📂 Selecionar
-                        </button>
+                        <input type="file" accept=".xlsx,.xls" onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) setAssessmentFile(file);
+                            }}
+                            className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                        />
                     </div>
                 </div>
 
-                {/* Evidence Path */}
+                {/* Evidence Zip */}
                 <div className="space-y-2">
                     <label className="flex items-center text-sm font-semibold text-slate-300 ml-1">
-                        <span className="mr-2">📂</span> Pasta de Evidências
+                        <span className="mr-2">📦</span> Pasta de Evidências (Arquivo .ZIP)
                     </label>
                     <div className="flex gap-3">
-                        <input type="text" value={evidencePath} onChange={e => setEvidencePath(e.target.value)}
-                            className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
-                            placeholder="C:\caminho\para\evidencias\" />
-                        <button type="button" onClick={handlePickFolder}
-                            className="px-6 bg-slate-700 hover:bg-slate-600 text-white rounded-2xl transition-all font-medium text-sm flex items-center shadow-lg border border-white/5">
-                            📁 Selecionar
-                        </button>
+                        <input type="file" accept=".zip" onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) setEvidenceFile(file);
+                            }}
+                            className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-2xl px-5 py-3 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                        />
                     </div>
                 </div>
 

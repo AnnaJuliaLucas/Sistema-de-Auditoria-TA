@@ -1,7 +1,7 @@
 """
 routers/export.py — Excel export and new audit creation.
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from backend.db import get_db, get_auditoria, carregar_avaliacoes, _safe_int
@@ -10,6 +10,9 @@ from pathlib import Path
 import tempfile
 import json
 import sys
+import os
+import shutil
+import zipfile
 
 _parent = str(Path(__file__).resolve().parent.parent.parent)
 if _parent not in sys.path:
@@ -17,22 +20,24 @@ if _parent not in sys.path:
 
 router = APIRouter(prefix="/api", tags=["export"])
 
-
-class NovaAuditoria(BaseModel):
-    unidade: str
-    area: str
-    ciclo: str
-    assessment_file_path: str = ""
-    evidence_folder_path: str = ""
-    openai_api_key: str = ""
-    observacoes: str = ""
-    modo_analise: str = "completo"
-
+# Diretório base para os uploads na nuvem
+UPLOAD_DIR = Path("data/uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/auditorias")
-def criar_auditoria(body: NovaAuditoria):
-    """Create a new audit."""
+async def criar_auditoria(
+    unidade: str = Form(...),
+    area: str = Form(...),
+    ciclo: str = Form(...),
+    openai_api_key: str = Form(""),
+    observacoes: str = Form(""),
+    modo_analise: str = Form("completo"),
+    assessment_file: UploadFile = File(None),
+    evidence_zip: UploadFile = File(None)
+):
+    """Create a new audit, supporting cloud uploads."""
     now = datetime.now().isoformat()
+    
     with get_db() as conn:
         try:
             conn.execute("""
@@ -40,27 +45,66 @@ def criar_auditoria(body: NovaAuditoria):
                     (unidade, area, ciclo, data_criacao, data_atualizacao,
                      status, assessment_file_path, evidence_folder_path,
                      openai_api_key, observacoes, modo_analise)
-                VALUES (?,?,?,?,?,'em_andamento',?,?,?,?,?)
-            """, (body.unidade, body.area, body.ciclo, now, now,
-                  body.assessment_file_path, body.evidence_folder_path,
-                  body.openai_api_key, body.observacoes, body.modo_analise))
+                VALUES (?,?,?,?,?,'em_andamento','','',?,?,?)
+            """, (unidade, area, ciclo, now, now,
+                  openai_api_key, observacoes, modo_analise))
             row = conn.execute(
                 "SELECT id FROM auditorias WHERE unidade=? AND area=? AND ciclo=?",
-                (body.unidade, body.area, body.ciclo)
+                (unidade, area, ciclo)
             ).fetchone()
             audit_id = row["id"] if row else None
         except Exception:
             row = conn.execute(
                 "SELECT id FROM auditorias WHERE unidade=? AND area=? AND ciclo=?",
-                (body.unidade, body.area, body.ciclo)
+                (unidade, area, ciclo)
             ).fetchone()
             audit_id = row["id"] if row else None
 
     if not audit_id:
         raise HTTPException(status_code=500, detail="Falha ao criar auditoria")
 
+    # Handle file uploads
+    audit_dir = UPLOAD_DIR / str(audit_id)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    
+    assessment_path = ""
+    evidence_path = ""
+    
+    if assessment_file and assessment_file.filename:
+        # Save Excel file
+        file_path = audit_dir / f"assessment_{audit_id}.xlsx"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(assessment_file.file, buffer)
+        assessment_path = str(file_path.absolute())
+    
+    if evidence_zip and evidence_zip.filename:
+        # Save and extract zip file
+        zip_path = audit_dir / f"evidences_{audit_id}.zip"
+        with open(zip_path, "wb") as buffer:
+            shutil.copyfileobj(evidence_zip.file, buffer)
+            
+        # Extract folder
+        extract_dir = audit_dir / "evidences"
+        extract_dir.mkdir(exist_ok=True)
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            evidence_path = str(extract_dir.absolute())
+        except Exception as e:
+            print(f"Failed to extract zip: {e}")
+            evidence_path = str(extract_dir.absolute())
+            
+    # Update audit record with actual paths
+    if assessment_path or evidence_path:
+        with get_db() as conn:
+            conn.execute("""
+                UPDATE auditorias
+                SET assessment_file_path=?, evidence_folder_path=?
+                WHERE id=?
+            """, (assessment_path, evidence_path, audit_id))
+
     # Parse assessment file if provided
-    if body.assessment_file_path and Path(body.assessment_file_path).exists():
+    if assessment_path and Path(assessment_path).exists():
         try:
             from checklist_po_aut_002 import CHECKLIST
             # Import subitems from checklist

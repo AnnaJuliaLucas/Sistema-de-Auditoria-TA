@@ -154,10 +154,15 @@ export const api = {
   // Auditorias
   listAuditorias: () => fetchAPI<Auditoria[]>("/api/auditorias"),
   getAuditoria: (id: number) => fetchAPI<Auditoria>(`/api/auditorias/${id}`),
-  criarAuditoria: (data: Partial<Auditoria>) => 
+  criarAuditoria: (data: FormData) => 
     fetchAPI<{ ok: boolean; id: number }>("/api/auditorias", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: data,
+      // Default headers in fetchAPI will set Content-Type to application/json,
+      // we need to override it to let the browser set it to multipart/form-data
+      headers: {
+        "Content-Type": undefined as any
+      }
     }),
   getUnidadesAreas: () => fetchAPI<Record<string, string[]>>("/api/unidades-areas"),
   updateStatus: (id: number, status: string) =>
