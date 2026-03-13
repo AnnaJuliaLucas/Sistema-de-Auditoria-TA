@@ -69,27 +69,34 @@ async def criar_auditoria(
     if not audit_id:
         raise HTTPException(status_code=500, detail="Falha ao criar auditoria")
 
-    # Handle file uploads
+    # Handle file uploads (local or URL)
     audit_dir = UPLOAD_DIR / str(audit_id)
     audit_dir.mkdir(parents=True, exist_ok=True)
     
-    assessment_path = assessment_url.strip() if assessment_url else ""
-    evidence_path = evidence_url.strip() if evidence_url else ""
+    assessment_path = ""
+    evidence_path = ""
     
+    # 1. Process Assessment File (Excel)
     if assessment_file and assessment_file.filename:
-        # Save Excel file
         file_path = audit_dir / f"assessment_{audit_id}.xlsx"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(assessment_file.file, buffer)
         assessment_path = str(file_path.absolute())
-    
+    elif assessment_url:
+        import urllib.request
+        try:
+            file_path = audit_dir / f"assessment_{audit_id}.xlsx"
+            urllib.request.urlretrieve(assessment_url, file_path)
+            assessment_path = str(file_path.absolute())
+        except Exception as e:
+            print(f"Failed to download assessment from URL: {e}")
+
+    # 2. Process Evidence ZIP
     if evidence_zip and evidence_zip.filename:
-        # Save and extract zip file
         zip_path = audit_dir / f"evidences_{audit_id}.zip"
         with open(zip_path, "wb") as buffer:
             shutil.copyfileobj(evidence_zip.file, buffer)
-            
-        # Extract folder
+        
         extract_dir = audit_dir / "evidences"
         extract_dir.mkdir(exist_ok=True)
         try:
@@ -97,42 +104,129 @@ async def criar_auditoria(
                 zip_ref.extractall(extract_dir)
             evidence_path = str(extract_dir.absolute())
         except Exception as e:
-            print(f"Failed to extract zip: {e}")
+            print(f"Failed to extract uploaded zip: {e}")
             evidence_path = str(extract_dir.absolute())
+    elif evidence_url:
+        import urllib.request
+        try:
+            zip_path = audit_dir / f"evidences_{audit_id}.zip"
+            urllib.request.urlretrieve(evidence_url, zip_path)
             
-    # Update audit record with actual paths
-    if assessment_path or evidence_path:
-        with get_db() as conn:
-            conn.execute("""
-                UPDATE auditorias
-                SET assessment_file_path=?, evidence_folder_path=?
-                WHERE id=?
-            """, (assessment_path, evidence_path, audit_id))
+            extract_dir = audit_dir / "evidences"
+            extract_dir.mkdir(exist_ok=True)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            evidence_path = str(extract_dir.absolute())
+        except Exception as e:
+            print(f"Failed to download/extract evidence from URL: {e}")
+            evidence_path = evidence_url # Fallback to URL string if extraction fails
 
-    # Parse assessment file if provided
+    # Update audit record with actual paths
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE auditorias
+            SET assessment_file_path=?, evidence_folder_path=?
+            WHERE id=?
+        """, (assessment_path, evidence_path, audit_id))
+
+    # 3. Always Populate Subitems from Checklist Baseline
+    try:
+        from checklist_po_aut_002 import CHECKLIST
+        # The CHECKLIST is a dict with (prat_num, sub_idx) as keys
+        with get_db() as conn:
+            # Map of practice names (could be moved to a shared constant)
+            pratica_nomes = {
+                1: "ROTINAS DE TA (PS 0005)",
+                2: "SOBRESSALENTES (PS 0006)",
+                3: "MAPA DE ATIVOS (PS 0007)",
+                4: "DISSEMINAÇÃO DO CONHECIMENTO (PS 0008)",
+                5: "GESTÃO DE INFRAESTRUTURA (PS 0009)",
+                6: "GESTÃO DE RISCOS (PS 0010)",
+                7: "INTERFACE COM A TI (PS 0011)",
+                8: "RECURSOS DE SOFTWARE E HARDWARE (PS 0012)",
+                9: "CYBERSEGURANÇA (PS 0015)"
+            }
+
+            subitem_nomes = {
+                (1, 0): "Backup Periódico e por Evento",
+                (1, 1): "Redundância e Organização",
+                (1, 2): "Teste de Backup",
+                (1, 3): "Controle de Modificações",
+                (1, 4): "Falhas e Alarmes",
+                (1, 5): "Verificação de Redes",
+                (1, 6): "Manutenção Preventiva",
+                (1, 7): "KPI Indisponibilidade",
+                (2, 0): "Verificação de Sobressalentes",
+                (2, 1): "Equipamentos c/ Sobressalente",
+                (3, 0): "Hardware (Power BI)",
+                (3, 1): "Software (Power BI)",
+                (4, 0): "Treinamentos Equipe",
+                (4, 1): "Treinamentos Responsáveis",
+                (4, 2): "Boas Práticas",
+                (5, 0): "Nobreak",
+                (5, 1): "Lista de IPs e IO",
+                (5, 2): "Diagramas",
+                (5, 3): "Ciclo de Vida",
+                (6, 0): "Identificação de Riscos",
+                (6, 1): "Planos de Contingência",
+                (7, 0): "Fronteiras de Responsabilidade",
+                (7, 1): "Projetos Integrados",
+                (8, 0): "Eng. Clients e IHM",
+                (8, 1): "Servidores",
+                (8, 2): "Teste Redundância",
+                (8, 3): "Softwares",
+                (9, 0): "Treinamento Cyber",
+                (9, 1): "Acesso Remoto",
+                (9, 2): "Backup Cyber",
+                (9, 3): "Resposta a Incidentes",
+                (9, 4): "Atualização (Patch)",
+                (9, 5): "Gestão de Acesso",
+                (9, 6): "Mídias Removíveis"
+            }
+
+            for key, info in CHECKLIST.items():
+                p_num, s_idx = key
+                p_nome = pratica_nomes.get(p_num, f"Prática {p_num}")
+                s_nome = subitem_nomes.get(key, f"Subitem {s_idx}")
+                
+                conn.execute("""
+                    INSERT OR IGNORE INTO avaliacoes
+                        (auditoria_id, pratica_num, pratica_nome,
+                         subitem_idx, subitem_nome, evidencia_descricao,
+                         decisao)
+                    VALUES (?,?,?,?,?,?,'pendente')
+                """, (
+                    audit_id, p_num, p_nome, s_idx, s_nome, 
+                    " \n".join(info.get("verificar", []))
+                ))
+    except Exception as e:
+        print(f"Error populating default checklist: {e}")
+
+    # 4. Optional: Parse assessment file to update notas SA if Excel exists
     if assessment_path and Path(assessment_path).exists():
         try:
-            from checklist_po_aut_002 import CHECKLIST
-            # Import subitems from checklist
+            import openpyxl
+            wb = openpyxl.load_workbook(assessment_path, data_only=True)
+            ws = wb.active
             with get_db() as conn:
-                for pratica in CHECKLIST:
-                    for sub in pratica.get("subitens", []):
+                current_p_num = None
+                s_idx_internal = 0
+                for row_cells in ws.iter_rows(min_row=2, values_only=True):
+                    if not any(row_cells): continue
+                    
+                    if row_cells[0] and str(row_cells[0]).strip().isdigit():
+                        current_p_num = int(row_cells[0])
+                        s_idx_internal = 0
+                    elif current_p_num is not None and row_cells[1]:
+                        nota_sa = _safe_int(row_cells[-1])
                         conn.execute("""
-                            INSERT OR IGNORE INTO avaliacoes
-                                (auditoria_id, pratica_num, pratica_nome,
-                                 subitem_idx, subitem_nome, evidencia_descricao,
-                                 nivel_0, nivel_1, nivel_2, nivel_3, nivel_4,
-                                 nota_self_assessment, decisao)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pendente')
-                        """, (
-                            audit_id, pratica["num"], pratica["nome"],
-                            sub["idx"], sub["nome"], sub.get("evidencia", ""),
-                            sub.get("nivel_0", ""), sub.get("nivel_1", ""),
-                            sub.get("nivel_2", ""), sub.get("nivel_3", ""),
-                            sub.get("nivel_4", ""), sub.get("nota_sa")
-                        ))
-        except Exception:
-            pass
+                            UPDATE avaliacoes
+                            SET nota_self_assessment=?
+                            WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
+                        """, (nota_sa, audit_id, current_p_num, s_idx_internal))
+                        s_idx_internal += 1
+        except Exception as e:
+            print(f"Failed to parse Excel for SA notes: {e}")
 
     return {"ok": True, "id": audit_id}
 
