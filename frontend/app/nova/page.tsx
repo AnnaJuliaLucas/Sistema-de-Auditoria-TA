@@ -42,6 +42,7 @@ export default function NovaAuditoriaPage() {
                 const blob = await upload(safeName, evidenceFile, {
                     access: 'public',
                     handleUploadUrl: `${window.location.origin}/upload-token`,
+                    addRandomSuffix: true,
                 });
                 finalEvidenceUrl = blob.url;
             }
@@ -51,6 +52,7 @@ export default function NovaAuditoriaPage() {
                 const blob = await upload(safeName, assessmentFile, {
                     access: 'public',
                     handleUploadUrl: `${window.location.origin}/upload-token`,
+                    addRandomSuffix: true,
                 });
                 finalAssessmentUrl = blob.url;
             }
