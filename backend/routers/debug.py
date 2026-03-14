@@ -61,9 +61,7 @@ def get_db_status():
     return {
         "use_postgres": USE_POSTGRES,
         "database_url_masked": masked_url,
-        "postgres_driver_available": False
-    }
-    # We will try import inside to avoid crash
+    # Try import inside to check availability
     try:
         import psycopg2
         return {

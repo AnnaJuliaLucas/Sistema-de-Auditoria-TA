@@ -402,7 +402,7 @@ def listar_auditorias() -> list[dict]:
             GROUP BY a.id, a.unidade, a.area, a.ciclo, a.data_criacao,
                      a.data_atualizacao, a.status, a.assessment_file_path,
                      a.evidence_folder_path, a.openai_api_key, a.observacoes, a.modo_analise,
-                     a.ai_provider, a.ai_base_url
+                     a.ai_provider, a.ai_base_url, a.evidence_map, a.evidence_zip_url
             ORDER BY a.ciclo DESC, a.unidade, a.area
         """).fetchall()
         return [dict(r) for r in rows]
