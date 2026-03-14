@@ -58,8 +58,12 @@ app.add_middleware(
 async def global_exception_handler(request: Request, exc: Exception):
     err_trace = traceback.format_exc()
     log.error(f"GLOBAL ERROR: {err_trace}")
+    
+    # Get origin for manual CORS injection on error
+    origin = request.headers.get("origin", "")
+    
     # Return more detail during debugging phase
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
         content={
             "detail": str(exc),
@@ -67,6 +71,19 @@ async def global_exception_handler(request: Request, exc: Exception):
             "traceback": err_trace
         }
     )
+    
+    # MANUAL CORS INJECTION FOR ERROR RESPONSES
+    if origin:
+        import re
+        if (origin in ALLOWED_ORIGINS or 
+            bool(re.match(r"https://.*\.vercel\.app$", origin)) or 
+            bool(re.match(r"http://localhost:\d+$", origin))):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            
+    return response
 
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -101,7 +118,12 @@ async def cors_and_log_middleware(request: Request, call_next):
             resp.headers["Access-Control-Max-Age"] = "3600"
         return resp
     
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # If call_next fails completely, fallback to the global handler 
+        # but the middleware should ideally not crash
+        return await global_exception_handler(request, e)
     
     # Inject CORS headers on all responses as a safety net
     if origin_allowed and origin:
@@ -109,6 +131,7 @@ async def cors_and_log_middleware(request: Request, call_next):
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
         response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "*"
     return response
 
 # Register routers
