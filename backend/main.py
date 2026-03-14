@@ -66,8 +66,9 @@ app.add_middleware(
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "https://sistema-de-auditoria-ta.vercel.app",
-        "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app"
+        "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app", # Permite subdomínios da Vercel
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
