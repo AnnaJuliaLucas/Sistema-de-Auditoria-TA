@@ -38,21 +38,21 @@ export default function NovaAuditoriaPage() {
 
             // Vercel Blob: Faz o upload direto na nuvem pelo navegador!
             if (evidenceFile) {
-                const safeName = evidenceFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_");
+                const uniqueId = Math.random().toString(36).substring(2, 8);
+                const safeName = `${uniqueId}_${evidenceFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
                 const blob = await upload(safeName, evidenceFile, {
                     access: 'public',
                     handleUploadUrl: `${window.location.origin}/upload-token`,
-                    addRandomSuffix: true,
                 });
                 finalEvidenceUrl = blob.url;
             }
 
             if (assessmentFile) {
-                const safeName = assessmentFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_");
+                const uniqueId = Math.random().toString(36).substring(2, 8);
+                const safeName = `${uniqueId}_${assessmentFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
                 const blob = await upload(safeName, assessmentFile, {
                     access: 'public',
                     handleUploadUrl: `${window.location.origin}/upload-token`,
-                    addRandomSuffix: true,
                 });
                 finalAssessmentUrl = blob.url;
             }
