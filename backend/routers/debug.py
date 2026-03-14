@@ -298,6 +298,39 @@ def fix_paths():
     except Exception as e:
         return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
 
+@router.get("/nuclear-clean")
+def nuclear_clean():
+    """Removes all files in uploads and clears app.log to recover space."""
+    try:
+        import shutil
+        import os
+        results = {"cleaned": [], "errors": []}
+        
+        # 1. Clear app.log
+        log_path = "/app/data/app.log" if os.environ.get("RAILWAY_ENVIRONMENT") else "app.log"
+        if os.path.exists(log_path):
+            with open(log_path, "w") as f:
+                f.write(f"--- Log cleared at {datetime.now().isoformat()} ---\n")
+            results["cleaned"].append("app.log")
+
+        # 2. Deletes contents of /app/data/uploads
+        uploads_dir = "/app/data/uploads" if os.environ.get("RAILWAY_ENVIRONMENT") else "uploads"
+        if os.path.exists(uploads_dir):
+            for item in os.listdir(uploads_dir):
+                item_path = os.path.join(uploads_dir, item)
+                try:
+                    if os.path.isfile(item_path):
+                        os.unlink(item_path)
+                    elif os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                    results["cleaned"].append(f"uploads/{item}")
+                except Exception as e:
+                    results["errors"].append(f"Error deleting {item}: {str(e)}")
+                    
+        return {"status": "success", "results": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @router.get("/clean-tmp")
 def clean_tmp():
     """Manually clear the /tmp directory to avoid No Space Left on Device."""
