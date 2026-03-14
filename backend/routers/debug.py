@@ -148,7 +148,12 @@ def get_db_details():
         "potential_lost_dbs": potential_dbs,
         "error": error,
         "cwd": os.getcwd(),
-        "env_keys": [k for k in os.environ.keys() if "URL" in k or "DB" in k or "PATH" in k]
+        "env_values": {
+            "RAILWAY_VOLUME_MOUNT_PATH": os.environ.get("RAILWAY_VOLUME_MOUNT_PATH"),
+            "RAILWAY_ENVIRONMENT": os.environ.get("RAILWAY_ENVIRONMENT"),
+            "DATABASE_URL_SET": bool(os.environ.get("DATABASE_URL"))
+        },
+        "backup_folders": [str(p) for p in Path("/app").rglob("*backup*") if p.is_dir()][:10]
     }
 
 @router.get("/force-init")
