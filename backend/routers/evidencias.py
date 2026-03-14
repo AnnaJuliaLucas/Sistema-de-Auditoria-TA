@@ -45,6 +45,12 @@ def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, aud: dict 
     mapa = {}
     try:
         root = Path(ev_folder)
+        # Bypassing single root folder wrapper (common in ZIPs)
+        items = [i for i in root.iterdir() if not i.name.startswith('.')]
+        if len(items) == 1 and items[0].is_dir():
+            log.info(f"Bypassing root folder wrapper: {items[0].name}")
+            root = items[0]
+            
         for pasta_pratica in sorted(root.iterdir()):
             if not pasta_pratica.is_dir():
                 continue

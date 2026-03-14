@@ -50,7 +50,7 @@ def update_global_config(body: GlobalConfig):
 def delete_auditoria(auditoria_id: int):
     """Delete an audit and all its evaluations."""
     with get_db() as conn:
-        conn.execute("DELETE FROM auditorias WHERE id = ?", (auditoria_id,))
+        conn.execute("DELETE FROM auditorias WHERE id = %s", (auditoria_id,))
     return {"ok": True}
 
 # ── NOVO: Base de Conhecimento & Local AI ──

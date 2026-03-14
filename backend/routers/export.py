@@ -156,16 +156,16 @@ async def criar_auditoria(
             insert_sql = insert_sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
 
         with get_db() as conn:
-            # Map of practice names
+              # Practice names for display
             pratica_nomes = {
-                1: "ROTINAS DE TA (PS 0005)",
-                2: "SOBRESSALENTES (PS 0006)",
-                3: "MAPA DE ATIVOS (PS 0007)",
-                4: "DISSEMINAÇÃO DO CONHECIMENTO (PS 0008)",
-                5: "GESTÃO DE INFRAESTRUTURA (PS 0009)",
-                6: "GESTÃO DE RISCOS (PS 0010)",
-                7: "INTERFACE COM A TI (PS 0011)",
-                8: "RECURSOS DE SOFTWARE E HARDWARE (PS 0012)",
+                1: "Rotinas de TA",
+                2: "Sobressalentes",
+                3: "Mapa de Ativos",
+                4: "Disseminação do Conhecimento",
+                5: "Gestão de Infraestrutura",
+                6: "Gestão de Riscos",
+                7: "Interface com a TI",
+                8: "Recursos de Software e Hardware",
                 9: "CYBERSEGURANÇA (PS 0015)"
             }
 

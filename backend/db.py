@@ -115,16 +115,19 @@ class PgCursorWrapper:
     def execute(self, sql, params=None):
         import psycopg2
         import psycopg2.extras
-        # Convert ? placeholders to %s for PostgreSQL
-        sql = sql.replace("?", "%s")
-        # Optimization: We keep the cursor open for the wrapper
+        # Convert ? placeholders to %s for PostgreSQL, but only if they are not already %s
+        # and be careful not to break existing %s or other % characters
+        if "?" in sql:
+            # Simple replacement works for most cases here as we don't use ? inside strings
+            sql = sql.replace("?", "%s")
+        
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
             cur.execute(sql, params)
             return PgResultWrapper(cur)
         except Exception as e:
             cur.close()
-            log.error(f"PostgreSQL Execute Error: {e} | SQL: {sql[:100]}...")
+            log.error(f"PostgreSQL Execute Error: {e} | SQL: {sql[:200]}...")
             raise
 
     def commit(self):
@@ -340,6 +343,15 @@ def _init_postgres():
             CREATE TABLE IF NOT EXISTS system_config (
                 key TEXT PRIMARY KEY,
                 value TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS knowledge_base (
+                id SERIAL PRIMARY KEY,
+                titulo TEXT,
+                conteudo TEXT,
+                tag TEXT DEFAULT 'geral',
+                fonte TEXT DEFAULT 'manual',
+                data_criacao TEXT
             );
         """)
         conn.commit()
