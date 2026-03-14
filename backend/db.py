@@ -73,9 +73,29 @@ def ensure_dirs():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _pg_connect():
+    """Conecta no PostgreSQL da Vercel/Neon com SSL."""
     import psycopg2
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    from psycopg2.extras import RealDictCursor
+    
+    url = DATABASE_URL
+    if not url:
+        raise ValueError("DATABASE_URL is not set and USE_POSTGRES is True")
+        
+    # Standardize scheme (psycopg2 version compatibility)
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+        
+    # Neon/Vercel usually require SSL
+    if "sslmode=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
+        
+    try:
+        # Use RealDictCursor to maintain compatibility with SQLite-style Row access
+        return psycopg2.connect(url, cursor_factory=RealDictCursor)
+    except Exception as e:
+        log.error(f"PostgreSQL connection failed: {e}")
+        raise
 
 def _sqlite_connect():
     conn = sqlite3.connect(str(DB_PATH), detect_types=sqlite3.PARSE_DECLTYPES)
@@ -382,6 +402,22 @@ def _init_postgres():
     except Exception as e:
         log.error(f"❌ Error in _init_postgres: {e}")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# USERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_user(email: str) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email=%s", (email,)).fetchone()
+        return dict(row) if row else None
+
+def create_user(email: str, hashed_password: str, role: str = "auditor"):
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (email, password, role) VALUES (%s, %s, %s)",
+            (email, hashed_password, role)
+        )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CRUD — AUDITORIAS
