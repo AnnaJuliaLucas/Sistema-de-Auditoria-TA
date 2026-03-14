@@ -1,0 +1,50 @@
+2026-03-14 22:00:26,563 [INFO] auditoria_api: 💾 Using volume for temp files: /app/data/tmp
+2026-03-14 22:00:26,576 [INFO] auditoria_db: Using SQLite: /app/data/dados/auditoria_ta.db
+2026-03-14 22:00:26,750 [INFO] auditoria_api: 🚀 Iniciando Sistema de Auditoria TA — Backend API
+2026-03-14 22:00:27,412 [INFO] auditoria_db: Default users seeded/verified
+2026-03-14 22:00:27,415 [INFO] auditoria_db: Database initialized
+2026-03-14 22:00:27,416 [INFO] auditoria_api: ✅ Banco de dados inicializado
+2026-03-14 22:01:14,614 [INFO] auditoria_api: 🛑 Backend encerrado
+2026-03-14 22:01:16,607 [INFO] auditoria_api: 📝 Logging to: /app/data/app.log
+2026-03-14 22:01:16,608 [INFO] auditoria_api: 💾 Using volume for temp files: /app/data/tmp
+2026-03-14 22:01:16,621 [INFO] auditoria_db: Using SQLite: /app/data/dados/auditoria_ta.db
+2026-03-14 22:01:16,795 [INFO] auditoria_api: 🚀 Iniciando Sistema de Auditoria TA — Backend API
+2026-03-14 22:01:17,500 [INFO] auditoria_db: Default users seeded/verified
+2026-03-14 22:01:17,504 [INFO] auditoria_db: Database initialized
+2026-03-14 22:01:17,505 [INFO] auditoria_api: ✅ Banco de dados inicializado
+2026-03-14 22:04:00,742 [INFO] auditoria_api: 🛑 Backend encerrado
+2026-03-14 22:04:03,170 [INFO] auditoria_api: 📝 Logging to: /app/data/app.log
+2026-03-14 22:04:03,171 [INFO] auditoria_api: 💾 Using volume for temp files: /app/data/tmp
+2026-03-14 22:04:03,188 [INFO] auditoria_db: Using SQLite: /app/data/dados/auditoria_ta.db
+2026-03-14 22:04:03,426 [INFO] auditoria_api: 🚀 Iniciando Sistema de Auditoria TA — Backend API
+2026-03-14 22:04:04,335 [INFO] auditoria_db: Default users seeded/verified
+2026-03-14 22:04:04,339 [INFO] auditoria_db: Database initialized
+2026-03-14 22:04:04,339 [INFO] auditoria_api: ✅ Banco de dados inicializado
+2026-03-14 22:11:40,908 [INFO] auditoria_api: 🛑 Backend encerrado
+2026-03-14 22:11:42,889 [INFO] auditoria_api: 📝 Logging to: /app/data/app.log
+2026-03-14 22:11:42,890 [INFO] auditoria_api: 💾 Using volume for temp files: /app/data/tmp
+2026-03-14 22:11:42,903 [INFO] auditoria_db: Using SQLite: /app/data/dados/auditoria_ta.db
+2026-03-14 22:11:43,102 [INFO] auditoria_api: 🚀 Iniciando Sistema de Auditoria TA — Backend API
+2026-03-14 22:11:43,954 [INFO] auditoria_db: Default users seeded/verified
+2026-03-14 22:11:43,960 [INFO] auditoria_db: Database initialized
+2026-03-14 22:11:43,960 [INFO] auditoria_api: ✅ Banco de dados inicializado
+2026-03-14 22:13:26,446 [INFO] auditoria_evidencias: Robust Extract: Bypassing root folder Reduç╞o
+2026-03-14 22:13:26,822 [INFO] auditoria_export: Audit 8: P1 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,822 [INFO] auditoria_export: Audit 8: P2 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,822 [INFO] auditoria_export: Audit 8: P3 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,822 [INFO] auditoria_export: Audit 8: P4 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,822 [INFO] auditoria_export: Audit 8: P5 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,823 [INFO] auditoria_export: Audit 8: P6 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,823 [INFO] auditoria_export: Audit 8: P7 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,823 [INFO] auditoria_export: Audit 8: P8 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:13:26,823 [INFO] auditoria_export: Background Excel SA sync complete for audit 8. (Column I used)
+2026-03-14 22:20:07,904 [INFO] auditoria_evidencias: Robust Extract: Bypassing root folder Reduç╞o
+2026-03-14 22:20:08,171 [INFO] auditoria_export: Audit 9: P1 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,171 [INFO] auditoria_export: Audit 9: P2 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,171 [INFO] auditoria_export: Audit 9: P3 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,171 [INFO] auditoria_export: Audit 9: P4 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,172 [INFO] auditoria_export: Audit 9: P5 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,172 [INFO] auditoria_export: Audit 9: P6 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,172 [INFO] auditoria_export: Audit 9: P7 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,172 [INFO] auditoria_export: Audit 9: P8 S0 -> Raw Col I: 'NOTA ITEM' -> Nota SA: None
+2026-03-14 22:20:08,172 [INFO] auditoria_export: Background Excel SA sync complete for audit 9. (Column I used)

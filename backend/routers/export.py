@@ -155,21 +155,28 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                 current_p_num = None
                 s_idx_internal = 0
                 for row_cells in ws.iter_rows(min_row=2, values_only=True):
-                    if not any(row_cells): continue
+                    # Se não tiver absolutamente nada em nenhuma das 9 primeiras colunas, pula.
+                    # As vezes openpyxl retorna strings vazias, então checamos se há algo não-nulo e não-vazio
+                    has_content = any(c is not None and str(c).strip() != "" for c in row_cells[:15])
+                    if not has_content: continue
+
                     if row_cells[0] and str(row_cells[0]).strip().isdigit():
                         current_p_num = int(row_cells[0])
                         s_idx_internal = 0
-                    elif current_p_num is not None and row_cells[1]:
-                        # A coluna I é a 9ª coluna (A=0, B=1, ... I=8)
-                        val_raw = row_cells[8]
-                        nota_sa = _safe_int(val_raw)
-                        log.info(f"Audit {audit_id}: P{current_p_num} S{s_idx_internal} -> Raw Col I: '{val_raw}' -> Nota SA: {nota_sa}")
-                        conn.execute("""
-                            UPDATE avaliacoes
-                            SET nota_self_assessment=?
-                            WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
-                        """, (nota_sa, audit_id, current_p_num, s_idx_internal))
-                        s_idx_internal += 1
+                    elif current_p_num is not None:
+                        # Precisamos pegar a coluna I (índice 8). 
+                        if len(row_cells) > 8:
+                            val_raw = row_cells[8]
+                            # Ignorar linhas de cabeçalho onde a Col I diz "NOTA ITEM"
+                            if val_raw is not None and str(val_raw).strip().upper() != "NOTA ITEM" and str(row_cells[1]).strip().upper() != "PRÁTICA":
+                                nota_sa = _safe_int(val_raw)
+                                log.info(f"Audit {audit_id}: P{current_p_num} S{s_idx_internal} -> Raw Col I: '{val_raw}' -> Nota SA: {nota_sa}")
+                                conn.execute("""
+                                    UPDATE avaliacoes
+                                    SET nota_self_assessment=?
+                                    WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
+                                """, (nota_sa, audit_id, current_p_num, s_idx_internal))
+                                s_idx_internal += 1
                 conn.commit()
             log.info(f"Background Excel SA sync complete for audit {audit_id}. (Column I used)")
         except Exception as e:
