@@ -68,11 +68,47 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://sistema-de-auditoria-ta.vercel.app",
+    "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app",
+    "https://sistema-de-auditoria-ta-annajulialucas-projects.vercel.app",
+]
+
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    origin = request.headers.get("origin")
+async def cors_and_log_middleware(request: Request, call_next):
+    origin = request.headers.get("origin", "")
     log.info(f"Incoming request: {request.method} {request.url} from origin: {origin}")
+    
+    # Determine if origin is allowed (exact match or vercel.app domain)
+    import re
+    origin_allowed = (
+        origin in ALLOWED_ORIGINS
+        or bool(re.match(r"https://.*\.vercel\.app$", origin))
+        or bool(re.match(r"http://localhost:\d+$", origin))
+    )
+    
+    # Handle preflight OPTIONS requests directly
+    if request.method == "OPTIONS":
+        from fastapi.responses import Response as FastAPIResponse
+        resp = FastAPIResponse(status_code=200)
+        if origin_allowed and origin:
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            resp.headers["Access-Control-Allow-Headers"] = "*"
+            resp.headers["Access-Control-Max-Age"] = "3600"
+        return resp
+    
     response = await call_next(request)
+    
+    # Inject CORS headers on all responses as a safety net
+    if origin_allowed and origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
 # Register routers
