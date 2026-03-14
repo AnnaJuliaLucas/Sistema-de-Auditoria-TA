@@ -160,7 +160,9 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                         current_p_num = int(row_cells[0])
                         s_idx_internal = 0
                     elif current_p_num is not None and row_cells[1]:
-                        nota_sa = _safe_int(row_cells[-1])
+                        # A coluna I é a 9ª coluna (A=0, B=1, ... I=8)
+                        # Usar índice 8 explicitamente em vez de -1 para evitar capturar colunas vazias à direita
+                        nota_sa = _safe_int(row_cells[8])
                         conn.execute("""
                             UPDATE avaliacoes
                             SET nota_self_assessment=?
@@ -168,7 +170,7 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                         """, (nota_sa, audit_id, current_p_num, s_idx_internal))
                         s_idx_internal += 1
                 conn.commit()
-            log.info(f"Background Excel SA sync complete for audit {audit_id}")
+            log.info(f"Background Excel SA sync complete for audit {audit_id}. (Column I used)")
         except Exception as e:
             log.error(f"Background Excel sync failed: {e}")
 
@@ -246,7 +248,8 @@ def importar_assessment(auditoria_id: int, assessment_path: str = ""):
                     current_p_num = int(row[0])
                     s_idx = 0
                 elif current_p_num and row[1]:
-                    nota_sa = _safe_int(row[-1])
+                    # Coluna I (índice 8)
+                    nota_sa = _safe_int(row[8])
                     conn.execute("""
                         UPDATE avaliacoes SET nota_self_assessment=?
                         WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
@@ -254,6 +257,7 @@ def importar_assessment(auditoria_id: int, assessment_path: str = ""):
                     s_idx += 1
                     imported += 1
             conn.commit()
+        log.info(f"Manual Excel import complete for audit {auditoria_id}. {imported} items updated (Column I).")
         return {"ok": True, "imported": imported}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao importar: {str(e)}")

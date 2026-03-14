@@ -375,3 +375,88 @@ def get_logs(lines: int = 100):
             }
     except Exception as e:
         return {"error": str(e)}
+
+@router.get("/audit-details/{audit_id}")
+def get_audit_details(audit_id: int):
+    """Deep inspection of a specific audit: files and evaluations."""
+    try:
+        from backend.db import get_db
+        from pathlib import Path
+        
+        details = {
+            "audit": None,
+            "evaluation_samples": [],
+            "files_on_disk": [],
+            "evidence_map_raw": None
+        }
+        
+        with get_db() as conn:
+            # 1. Basic info
+            row = conn.execute("SELECT * FROM auditorias WHERE id = ?", (audit_id,)).fetchone()
+            if row:
+                details["audit"] = dict(row)
+                details["evidence_map_raw"] = row["evidence_map"]
+            
+            # 2. Evaluation samples (first 10)
+            evs = conn.execute("SELECT id, pratica_num, subitem_idx, nota_self_assessment, decisao FROM avaliacoes WHERE auditoria_id = ? LIMIT 20", (audit_id,)).fetchall()
+            details["evaluation_samples"] = [dict(e) for e in evs]
+            
+        # 3. List files on disk recursively
+        if details["audit"] and details["audit"].get("evidence_folder_path"):
+            path = Path(details["audit"]["evidence_folder_path"])
+            if path.exists():
+                for f in path.rglob("*"):
+                    details["files_on_disk"].append({
+                        "rel": str(f.relative_to(path)),
+                        "abs": str(f),
+                        "is_file": f.is_file(),
+                        "size": f.stat().st_size if f.is_file() else 0
+                    })
+        
+        return details
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
+@router.get("/re-extract/{audit_id}")
+def re_extract_audit(audit_id: int):
+    """Force re-extraction of audit ZIP using robust logic."""
+    try:
+        from backend.db import get_auditoria, BASE_DIR
+        from backend.routers.evidencias import extract_zip_robustly, _get_or_build_evidence_map
+        import json
+        
+        aud = get_auditoria(audit_id)
+        if not aud:
+            return {"error": "Audit not found"}
+            
+        audit_dir = BASE_DIR / "uploads" / str(audit_id)
+        zip_path = audit_dir / f"evidences_{audit_id}.zip"
+        extract_to = audit_dir / "evidences"
+        
+        if not zip_path.exists():
+            return {"error": f"ZIP not found at {zip_path}"}
+            
+        # 1. Re-extract
+        log.info(f"Force re-extracting audit {audit_id}")
+        extract_zip_robustly(zip_path, extract_to)
+        
+        # 2. Re-build map
+        new_map = _get_or_build_evidence_map(str(extract_to), refresh=True)
+        # Convert keys for DB
+        db_map = {f"{p}.{s}": files for (p, s), files in new_map.items()}
+        
+        # 3. Update DB
+        from backend.db import get_db, USE_POSTGRES
+        with get_db() as conn:
+            q = "UPDATE auditorias SET evidence_map=? WHERE id=?"
+            if USE_POSTGRES: q = q.replace("?", "%s")
+            conn.execute(q, (json.dumps(db_map), audit_id))
+            conn.commit()
+            
+        return {
+            "status": "success", 
+            "message": "Re-extraction complete",
+            "map_size": len(db_map)
+        }
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}

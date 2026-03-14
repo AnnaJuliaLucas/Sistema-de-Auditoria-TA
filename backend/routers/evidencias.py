@@ -32,20 +32,55 @@ EXTS_ALL = EXTS_IMG | EXTS_DOC | EXTS_VIDEO
 _EVIDENCE_CACHE = {}
 
 def extract_zip_robustly(zip_path: Path, extract_to: Path):
-    """Extract zip and bypass single root folder if present."""
+    """Extract zip and bypass single root folder if present, handling encoding issues."""
     extract_to.mkdir(parents=True, exist_ok=True)
+    
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
+        for member in zip_ref.infolist():
+            # Tentar corrigir encoding se o nome parecer CP437 (comum em ZIPs de Windows sem bit UTF-8)
+            try:
+                # Se o nome original vier como CP437, tentamos converter para UTF-8 se contiver caracteres estendidos
+                filename = member.filename
+                try:
+                    # O zipfile do Python tenta decodar CP437 se não houver flag UTF-8. 
+                    # Se decodou algo com caracteres especiais que parecem CP437, re-decodamos.
+                    filename = filename.encode('cp437').decode('utf-8')
+                except:
+                    pass
+                
+                target_path = extract_to / filename
+                if member.is_dir():
+                    target_path.mkdir(parents=True, exist_ok=True)
+                else:
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    with zip_ref.open(member) as source, open(target_path, "wb") as target:
+                        shutil.copyfileobj(source, target)
+            except Exception as e:
+                log.warning(f"Failed to extract {member.filename} with robust encoding: {e}")
+                # Fallback simples
+                zip_ref.extract(member, extract_to)
     
     # Check for single root folder
-    items = [i for i in extract_to.iterdir() if not i.name.startswith('.')]
-    if len(items) == 1 and items[0].is_dir():
-        log.info(f"Robust Extract: Bypassing root folder {items[0].name}")
-        temp_dir = extract_to.parent / f"{extract_to.name}_temp"
-        items[0].rename(temp_dir)
-        # Delete empty extract_to and move temp_dir content back
-        shutil.rmtree(extract_to)
-        temp_dir.rename(extract_to)
+    # Ignorar pastas ocultas e o próprio diretório
+    items = [i for i in extract_to.iterdir() if not i.name.startswith('.') and i.is_dir()]
+    # Se só sobrou uma pasta (e talvez arquivos soltos de sistema), bypass nela
+    if len(items) == 1:
+        root_folder = items[0]
+        log.info(f"Robust Extract: Bypassing root folder {root_folder.name}")
+        
+        # Mover conteúdo da subpasta para a raiz
+        for sub_item in root_folder.iterdir():
+            dest = extract_to / sub_item.name
+            if dest.exists():
+                if dest.is_dir(): shutil.rmtree(dest)
+                else: dest.unlink()
+            shutil.move(str(sub_item), str(dest))
+            
+        # Remover a pasta agora vazia
+        try:
+            shutil.rmtree(root_folder)
+        except:
+            pass
 
 def ensure_local_file(file_path: Path):
     """If file missing on Vercel, re-download and re-extract ZIP."""
