@@ -142,6 +142,8 @@ def get_db_details():
         "db_path": path_str,
         "home_path": home_dir,
         "root_folders": root_folders,
+        "app_files": os.listdir("/app") if os.path.exists("/app") else [],
+        "migrate_file_exists": os.path.exists("migrate_data_local.db"),
         "db_path_exists": path_exists,
         "tables": tables,
         "auditoria_count": auditoria_count,
@@ -151,10 +153,34 @@ def get_db_details():
         "env_values": {
             "RAILWAY_VOLUME_MOUNT_PATH": os.environ.get("RAILWAY_VOLUME_MOUNT_PATH"),
             "RAILWAY_ENVIRONMENT": os.environ.get("RAILWAY_ENVIRONMENT"),
-            "DATABASE_URL_SET": bool(os.environ.get("DATABASE_URL"))
-        },
-        "backup_folders": [str(p) for p in Path("/app").rglob("*backup*") if p.is_dir()][:10]
+        }
     }
+
+@router.get("/restore-manual")
+def restore_manual():
+    """Manually force restore from migrate_data_local.db if it exists."""
+    from backend.db import DB_PATH, ensure_dirs
+    import shutil
+    import os
+    
+    migration_file = "migrate_data_local.db"
+    if not os.path.exists(migration_file):
+        return {"status": "error", "message": f"File {migration_file} not found in {os.getcwd()}"}
+    
+    try:
+        ensure_dirs()
+        # Backup existing (empty) db just in case
+        if os.path.exists(str(DB_PATH)):
+            shutil.copy2(str(DB_PATH), str(DB_PATH) + ".bak")
+            
+        shutil.copy2(migration_file, str(DB_PATH))
+        return {
+            "status": "success", 
+            "message": f"Restored from {migration_file} to {DB_PATH}",
+            "size": os.path.getsize(str(DB_PATH))
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @router.get("/force-init")
 def force_init_db():
