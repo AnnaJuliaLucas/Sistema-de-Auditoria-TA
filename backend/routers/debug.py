@@ -191,7 +191,6 @@ def force_init_db():
         log.info("Manual init_db triggered via API")
         init_db()
         return {"status": "success", "message": "Database initialization completed successfully"}
-        }
     except Exception as e:
         err = traceback.format_exc()
         log.error(f"Manual init_db FAILED: {err}")
