@@ -307,3 +307,20 @@ def clean_tmp():
         return {"status": "success", "cleaned_items": count, "errors": errors}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@router.get("/logs")
+def get_logs(lines: int = 100):
+    """Returns the last N lines of the application log file."""
+    log_path = "/app/data/app.log" if os.environ.get("RAILWAY_ENVIRONMENT") else "app.log"
+    if not os.path.exists(log_path):
+        return {"error": f"Log file not found at {log_path}"}
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.readlines()
+            return {
+                "path": log_path,
+                "lines": content[-lines:] if len(content) > lines else content,
+                "total_lines": len(content)
+            }
+    except Exception as e:
+        return {"error": str(e)}

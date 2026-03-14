@@ -9,8 +9,18 @@ import logging
 import os
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging to both console and file in volume
+log_path = "/app/data/app.log" if os.environ.get("RAILWAY_ENVIRONMENT") else "app.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(log_path)
+    ]
+)
 log = logging.getLogger("auditoria_api")
+log.info(f"📝 Logging to: {log_path}")
 
 # Railway specific: if we have a volume, use it for temp files to avoid [Errno 28] No space left on device
 if os.environ.get("RAILWAY_ENVIRONMENT"):
