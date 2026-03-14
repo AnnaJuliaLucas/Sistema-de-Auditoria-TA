@@ -5,4 +5,4 @@ frontend/.next
 .git
 *.pyc
 __pycache__
-*.db
+# *.db removido para permitir migração de dados local
