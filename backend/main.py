@@ -36,6 +36,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 1. CORS — ALWAYS AT THE TOP
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://sistema-de-auditoria-ta.vercel.app",
+        "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     err_trace = traceback.format_exc()
@@ -85,16 +100,6 @@ app.include_router(evidencias_router)
 app.include_router(dados_router)
 app.include_router(utils_router)
 app.include_router(config_router)
-
-# CORS — MASSIVE SIMPLIFICATION FOR DEBUGGING
-# We allow everything to confirm if CORS is truly the culprit
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False, # Must be False for "*"
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.get("/api/health")
