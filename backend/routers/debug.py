@@ -74,3 +74,36 @@ def get_db_status():
             "postgres_driver_available": False,
             "error": str(e)
         }
+
+@router.get("/db-details")
+def get_db_details():
+    """Returns detailed SQLite info for troubleshooting."""
+    from backend.db import DB_PATH
+    import sqlite3
+    import os
+    
+    path_str = str(DB_PATH)
+    path_exists = os.path.exists(path_str)
+    dir_exists = os.path.exists(str(DB_PATH.parent))
+    
+    tables = []
+    error = None
+    try:
+        if path_exists:
+            conn = sqlite3.connect(path_str)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            conn.close()
+    except Exception as e:
+        error = str(e)
+        
+    return {
+        "db_path": path_str,
+        "db_path_exists": path_exists,
+        "db_dir_exists": dir_exists,
+        "tables": tables,
+        "error": error,
+        "env_railway": os.environ.get("RAILWAY_ENVIRONMENT"),
+        "env_docker": os.path.exists("/.dockerenv")
+    }
