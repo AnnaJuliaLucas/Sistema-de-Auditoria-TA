@@ -43,7 +43,7 @@ BACKUP_DIR = BASE_DIR / "dados" / "backups"
 DB_PATH = DADOS_DIR / "auditoria_ta.db"
 
 # Schema version atual — incrementar a cada migração adicionada
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 log = logging.getLogger("auditoria_db")
 
@@ -339,6 +339,19 @@ def _m13_users_table(conn):
 def _m14_placeholder(conn):
     """Placeholder para sincronizar versão."""
     pass
+
+@migration(15)
+def _m15_evidence_fields(conn):
+    """Adiciona campos de mapeamento de evidências em auditorias."""
+    for col_def in [
+        "ALTER TABLE auditorias ADD COLUMN evidence_map TEXT DEFAULT '{}'",
+        "ALTER TABLE auditorias ADD COLUMN evidence_zip_url TEXT DEFAULT ''",
+    ]:
+        try:
+            conn.execute(col_def)
+        except sqlite3.OperationalError:
+            pass  # coluna já existe
+    conn.commit()
 
 def _get_schema_version(conn) -> int:
     """Retorna versão atual do banco (0 se não inicializado)."""
