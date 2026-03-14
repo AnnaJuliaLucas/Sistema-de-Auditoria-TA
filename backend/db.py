@@ -428,13 +428,13 @@ def _init_postgres():
 
 def get_user(email: str) -> Optional[dict]:
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM users WHERE email=%s", (email,)).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         return dict(row) if row else None
 
 def create_user(email: str, hashed_password: str, role: str = "auditor"):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO users (email, password, role) VALUES (%s, %s, %s)",
+            "INSERT INTO users (email, password, role) VALUES (?, ?, ?)",
             (email, hashed_password, role)
         )
 
