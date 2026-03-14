@@ -98,10 +98,9 @@ async def criar_auditoria(
             shutil.copyfileobj(evidence_zip.file, buffer)
         
         extract_dir = audit_dir / "evidences"
-        extract_dir.mkdir(exist_ok=True)
         try:
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(extract_dir)
+            from backend.routers.evidencias import extract_zip_robustly
+            extract_zip_robustly(zip_path, extract_dir)
             evidence_path = str(extract_dir.absolute())
         except Exception as e:
             print(f"Failed to extract uploaded zip: {e}")
@@ -113,9 +112,8 @@ async def criar_auditoria(
             urllib.request.urlretrieve(evidence_url, zip_path)
             
             extract_dir = audit_dir / "evidences"
-            extract_dir.mkdir(exist_ok=True)
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(extract_dir)
+            from backend.routers.evidencias import extract_zip_robustly
+            extract_zip_robustly(zip_path, extract_dir)
             evidence_path = str(extract_dir.absolute())
         except Exception as e:
             print(f"Failed to download/extract evidence from URL: {e}")
@@ -133,11 +131,18 @@ async def criar_auditoria(
             print(f"Failed to build initial evidence map: {e}")
 
     with get_db() as conn:
-        conn.execute("""
-            UPDATE auditorias
-            SET assessment_file_path=?, evidence_folder_path=?, evidence_map=?
-            WHERE id=?
-        """, (assessment_path, evidence_path, json.dumps(evidence_map), audit_id))
+        if USE_POSTGRES:
+            conn.execute("""
+                UPDATE auditorias
+                SET assessment_file_path=%s, evidence_folder_path=%s, evidence_map=%s, evidence_zip_url=%s
+                WHERE id=%s
+            """, (assessment_path, evidence_path, json.dumps(evidence_map), evidence_url or "", audit_id))
+        else:
+            conn.execute("""
+                UPDATE auditorias
+                SET assessment_file_path=?, evidence_folder_path=?, evidence_map=?, evidence_zip_url=?
+                WHERE id=?
+            """, (assessment_path, evidence_path, json.dumps(evidence_map), evidence_url or "", audit_id))
 
     # 3. Always Populate Subitems from Checklist Baseline
     try:

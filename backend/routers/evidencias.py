@@ -4,11 +4,14 @@ routers/evidencias.py — Evidence file listing, serving, and criteria retrieval
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pathlib import Path
-from backend.db import get_auditoria
+from backend.db import get_auditoria, BASE_DIR
 import sys
 import re
 import os
 import urllib.parse
+import urllib.request
+import zipfile
+import shutil
 import logging
 
 log = logging.getLogger("auditoria_evidencias")
@@ -27,6 +30,55 @@ EXTS_ALL = EXTS_IMG | EXTS_DOC | EXTS_VIDEO
 
 # Caching evidence maps
 _EVIDENCE_CACHE = {}
+
+def extract_zip_robustly(zip_path: Path, extract_to: Path):
+    """Extract zip and bypass single root folder if present."""
+    extract_to.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_to)
+    
+    # Check for single root folder
+    items = [i for i in extract_to.iterdir() if not i.name.startswith('.')]
+    if len(items) == 1 and items[0].is_dir():
+        log.info(f"Robust Extract: Bypassing root folder {items[0].name}")
+        temp_dir = extract_to.parent / f"{extract_to.name}_temp"
+        items[0].rename(temp_dir)
+        # Delete empty extract_to and move temp_dir content back
+        shutil.rmtree(extract_to)
+        temp_dir.rename(extract_to)
+
+def ensure_local_file(file_path: Path):
+    """If file missing on Vercel, re-download and re-extract ZIP."""
+    if file_path.exists():
+        return
+    
+    log.info(f"File missing: {file_path}. Attempting lazy restoration...")
+    
+    # Try to find auditoria_id in path
+    parts = file_path.parts
+    try:
+        idx = parts.index("uploads")
+        audit_id = int(parts[idx+1])
+    except (ValueError, IndexError):
+        return
+
+    aud = get_auditoria(audit_id)
+    if not aud or not aud.get("evidence_zip_url"):
+        log.warning(f"Restoration failed: No zip URL for audit {audit_id}")
+        return
+
+    zip_url = aud["evidence_zip_url"]
+    audit_dir = BASE_DIR / "uploads" / str(audit_id)
+    zip_path = audit_dir / f"evidences_{audit_id}.zip"
+    extract_dir = audit_dir / "evidences"
+
+    try:
+        log.info(f"Downloading {zip_url} to {zip_path}")
+        urllib.request.urlretrieve(zip_url, zip_path)
+        extract_zip_robustly(zip_path, extract_dir)
+        log.info(f"Restoration of audit {audit_id} complete.")
+    except Exception as e:
+        log.error(f"Lazy restoration failed: {e}")
 
 def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, aud: dict = None) -> dict:
     """Get from cache or build and cache evidence map. Fallbacks to DB if folder missing."""
@@ -196,9 +248,11 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
     Serve an evidence file (image, PDF, video, document).
     The path must be an absolute path to a file on disk.
     """
-    # Decode the path in case it was double-encoded
     decoded_path = urllib.parse.unquote(path)
     file_path = Path(decoded_path)
+    
+    # Ensure file exists (lazy restore if missing)
+    ensure_local_file(file_path)
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {decoded_path}")
@@ -247,6 +301,9 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
     """
     decoded_path = urllib.parse.unquote(path)
     file_path = Path(decoded_path)
+    
+    # Ensure file exists (lazy restore if missing)
+    ensure_local_file(file_path)
 
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")

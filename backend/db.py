@@ -225,6 +225,7 @@ def _init_postgres():
                 modo_analise TEXT DEFAULT 'completo',
                 observacoes TEXT DEFAULT '',
                 evidence_map TEXT DEFAULT '{}',
+                evidence_zip_url TEXT DEFAULT '',
                 UNIQUE(unidade, area, ciclo)
             );
 
@@ -234,6 +235,10 @@ def _init_postgres():
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                                WHERE table_name='auditorias' AND column_name='evidence_map') THEN
                     ALTER TABLE auditorias ADD COLUMN evidence_map TEXT DEFAULT '{}';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='auditorias' AND column_name='evidence_zip_url') THEN
+                    ALTER TABLE auditorias ADD COLUMN evidence_zip_url TEXT DEFAULT '';
                 END IF;
             END $$;
 
@@ -422,7 +427,7 @@ def atualizar_status(auditoria_id: int, status: str):
 
 def atualizar_config(auditoria_id: int, assessment_path: str,
                      evidence_folder: str, api_key: str, observacoes: str = None, 
-                     modo_analise: str = "completo"):
+                     modo_analise: str = "completo", evidence_zip_url: str = ""):
     with get_db() as conn:
         now = datetime.now().isoformat()
         if observacoes is not None:
@@ -430,16 +435,17 @@ def atualizar_config(auditoria_id: int, assessment_path: str,
                 UPDATE auditorias
                 SET assessment_file_path=?, evidence_folder_path=?,
                     openai_api_key=?, data_atualizacao=?, observacoes=?,
-                    modo_analise=?
+                    modo_analise=?, evidence_zip_url=?
                 WHERE id=?
-            """, (assessment_path, evidence_folder, api_key, now, observacoes, modo_analise, auditoria_id))
+            """, (assessment_path, evidence_folder, api_key, now, observacoes, modo_analise, evidence_zip_url, auditoria_id))
         else:
             conn.execute("""
                 UPDATE auditorias
                 SET assessment_file_path=?, evidence_folder_path=?,
-                    openai_api_key=?, data_atualizacao=?, modo_analise=?
+                    openai_api_key=?, data_atualizacao=?, modo_analise=?,
+                    evidence_zip_url=?
                 WHERE id=?
-            """, (assessment_path, evidence_folder, api_key, now, modo_analise, auditoria_id))
+            """, (assessment_path, evidence_folder, api_key, now, modo_analise, evidence_zip_url, auditoria_id))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
