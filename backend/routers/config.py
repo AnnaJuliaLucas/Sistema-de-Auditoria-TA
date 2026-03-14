@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from backend.db import get_db, get_system_config, set_system_config, listar_conhecimento
+from backend.db import get_db, get_system_config, set_system_config, listar_conhecimento, get_auditoria, delete_vercel_blobs
 import os
 import subprocess
 from pathlib import Path
@@ -48,7 +48,25 @@ def update_global_config(body: GlobalConfig):
 
 @router.delete("/auditorias/{auditoria_id}")
 def delete_auditoria(auditoria_id: int):
-    """Delete an audit and all its evaluations."""
+    """Delete an audit, all its evaluations, and associated Vercel Blobs."""
+    aud = get_auditoria(auditoria_id)
+    if not aud:
+        raise HTTPException(status_code=404, detail="Auditoria não encontrada")
+        
+    # Collect blob URLs to delete
+    blobs_to_delete = []
+    if aud.get("assessment_file_path") and aud["assessment_file_path"].startswith("http"):
+        blobs_to_delete.append(aud["assessment_file_path"])
+    if aud.get("evidence_zip_url") and aud["evidence_zip_url"].startswith("http"):
+        blobs_to_delete.append(aud["evidence_zip_url"])
+        
+    # Delete from Vercel Storage
+    if blobs_to_delete:
+        try:
+            delete_vercel_blobs(blobs_to_delete)
+        except Exception as e:
+            print(f"Failed to delete blobs for audit {auditoria_id}: {e}")
+
     with get_db() as conn:
         conn.execute("DELETE FROM auditorias WHERE id = %s", (auditoria_id,))
     return {"ok": True}

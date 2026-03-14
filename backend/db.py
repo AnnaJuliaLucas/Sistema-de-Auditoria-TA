@@ -865,11 +865,61 @@ def create_user(email: str, password_hash: str, role: str = "auditor"):
 def set_system_config(key: str, value: str):
     """Saves or updates a global system configuration value."""
     with get_db() as conn:
-        conn.execute("""
-            INSERT INTO system_config (key, value)
-            VALUES (?, ?)
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-        """, (key, value))
+        if USE_POSTGRES:
+            conn.execute("""
+                INSERT INTO system_config (key, value)
+                VALUES (%s, %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            """, (key, value))
+        else:
+            conn.execute("""
+                INSERT INTO system_config (key, value)
+                VALUES (?, ?)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            """, (key, value))
+
+def get_system_config(key: str, default: str = "") -> str:
+    """Retrieves a global system configuration value."""
+    with get_db() as conn:
+        if USE_POSTGRES:
+            row = conn.execute("SELECT value FROM system_config WHERE key = %s", (key,)).fetchone()
+        else:
+            row = conn.execute("SELECT value FROM system_config WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+
+def delete_vercel_blobs(urls: list[str]):
+    """Delete blobs from Vercel Storage using the BLOB_READ_WRITE_TOKEN."""
+    if not urls:
+        return
+        
+    token = os.environ.get("BLOB_READ_WRITE_TOKEN")
+    if not token:
+        log.warning("BLOB_READ_WRITE_TOKEN not found. Skipping blob deletion.")
+        return
+        
+    try:
+        import json
+        import urllib.request
+        
+        # Vercel Blob API for deletion
+        api_url = "https://blob.vercel-storage.com/delete"
+        data = json.dumps({"urls": [u for u in urls if u and u.startswith("http")]}).encode("utf-8")
+        
+        req = urllib.request.Request(
+            api_url, 
+            data=data,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
+        
+        with urllib.request.urlopen(req) as response:
+            res_data = response.read().decode("utf-8")
+            log.info(f"Vercel Blobs deleted. Count: {len(urls)}")
+    except Exception as e:
+        log.error(f"Failed to delete Vercel Blobs: {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # KNOWLEDGE BASE (Base de Conhecimento)
