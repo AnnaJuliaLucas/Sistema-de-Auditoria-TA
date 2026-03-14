@@ -199,6 +199,10 @@ def get_all_evidences(auditoria_id: int, refresh: bool = False):
     if not aud:
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
+    # Visibility Rule: Only show evidence if audit is "em_andamento"
+    if aud.get("status") != "em_andamento":
+        return {}
+
     ev_folder = aud.get("evidence_folder_path", "") or ""
     mapa = _get_or_build_evidence_map(ev_folder, refresh=refresh, aud=aud)
     
@@ -225,8 +229,12 @@ def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int):
     if not aud:
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
+    # Visibility Rule: Only show evidence if audit is "em_andamento"
+    if aud.get("status") != "em_andamento":
+        return {}
+
     ev_folder = aud.get("evidence_folder_path", "") or ""
-    mapa = _get_or_build_evidence_map(ev_folder, aud=aud)
+    mapa = _get_or_build_evidence_map(ev_folder, audit=aud)
     files = mapa.get((pratica_num, subitem_idx), [])
 
     images = [f for f in files if Path(f).suffix.lower() in EXTS_IMG]
@@ -251,6 +259,17 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
     decoded_path = urllib.parse.unquote(path)
     file_path = Path(decoded_path)
     
+    # Extract audit_id from path and check visibility
+    parts = file_path.parts
+    try:
+        idx = parts.index("uploads")
+        audit_id = int(parts[idx+1])
+        aud = get_auditoria(audit_id)
+        if aud and aud.get("status") != "em_andamento":
+            raise HTTPException(status_code=403, detail="Acesso negado: Auditoria finalizada/não em andamento.")
+    except (ValueError, IndexError):
+        pass
+
     # Ensure file exists (lazy restore if missing)
     ensure_local_file(file_path)
 
@@ -302,6 +321,17 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
     decoded_path = urllib.parse.unquote(path)
     file_path = Path(decoded_path)
     
+    # Extract audit_id from path and check visibility
+    parts = file_path.parts
+    try:
+        idx = parts.index("uploads")
+        audit_id = int(parts[idx+1])
+        aud = get_auditoria(audit_id)
+        if aud and aud.get("status") != "em_andamento":
+            raise HTTPException(status_code=403, detail="Acesso negado: Auditoria finalizada/não em andamento.")
+    except (ValueError, IndexError):
+        pass
+
     # Ensure file exists (lazy restore if missing)
     ensure_local_file(file_path)
 

@@ -837,31 +837,6 @@ def carregar_audit_log(auditoria_id: int = None, limit: int = 200) -> list[dict]
 # SYSTEM CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_system_config(key: str, default: str = "") -> str:
-    """Retrieve a global system configuration value."""
-    with get_db() as conn:
-        try:
-            row = conn.execute("SELECT value FROM system_config WHERE key=?", (key,)).fetchone()
-            return row["value"] if row else default
-        except Exception:
-            return default
-
-
-def get_user(email: str) -> Optional[dict]:
-    """Fetch user by email."""
-    with get_db() as conn:
-        row = conn.execute("SELECT * FROM users WHERE email=?", (email.lower(),)).fetchone()
-        return dict(row) if row else None
-
-
-def create_user(email: str, password_hash: str, role: str = "auditor"):
-    """Create a new user."""
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO users (email, password, role) VALUES (?, ?, ?)",
-            (email.lower(), password_hash, role)
-        )
-
 def set_system_config(key: str, value: str):
     """Saves or updates a global system configuration value."""
     with get_db() as conn:
@@ -881,11 +856,14 @@ def set_system_config(key: str, value: str):
 def get_system_config(key: str, default: str = "") -> str:
     """Retrieves a global system configuration value."""
     with get_db() as conn:
-        if USE_POSTGRES:
-            row = conn.execute("SELECT value FROM system_config WHERE key = %s", (key,)).fetchone()
-        else:
-            row = conn.execute("SELECT value FROM system_config WHERE key = ?", (key,)).fetchone()
-        return row["value"] if row else default
+        try:
+            if USE_POSTGRES:
+                row = conn.execute("SELECT value FROM system_config WHERE key = %s", (key,)).fetchone()
+            else:
+                row = conn.execute("SELECT value FROM system_config WHERE key = ?", (key,)).fetchone()
+            return row["value"] if row else default
+        except Exception:
+            return default
 
 def delete_vercel_blobs(urls: list[str]):
     """Delete blobs from Vercel Storage using the BLOB_READ_WRITE_TOKEN."""

@@ -171,7 +171,7 @@ async def criar_auditoria(
                 6: "Gestão de Riscos",
                 7: "Interface com a TI",
                 8: "Recursos de Software e Hardware",
-                9: "CYBERSEGURANÇA (PS 0015)"
+                9: "CYBERSEGURANÇA"
             }
 
             subitem_nomes = {
@@ -185,8 +185,8 @@ async def criar_auditoria(
                 (1, 7): "KPI Indisponibilidade",
                 (2, 0): "Verificação de Sobressalentes",
                 (2, 1): "Equipamentos c/ Sobressalente",
-                (3, 0): "Hardware (Power BI)",
-                (3, 1): "Software (Power BI)",
+                (3, 0): "Hardware",
+                (3, 1): "Software",
                 (4, 0): "Treinamentos Equipe",
                 (4, 1): "Treinamentos Responsáveis",
                 (4, 2): "Boas Práticas",
@@ -206,7 +206,7 @@ async def criar_auditoria(
                 (9, 1): "Acesso Remoto",
                 (9, 2): "Backup Cyber",
                 (9, 3): "Resposta a Incidentes",
-                (9, 4): "Atualização (Patch)",
+                (9, 4): "Atualização",
                 (9, 5): "Gestão de Acesso",
                 (9, 6): "Mídias Removíveis"
             }
