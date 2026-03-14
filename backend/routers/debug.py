@@ -214,34 +214,42 @@ def check_evidences():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     try:
-        row = conn.execute("SELECT id, unidade, area, ciclo, evidence_folder_path, evidence_map FROM auditorias ORDER BY id DESC LIMIT 1").fetchone()
-        if not row:
-            return {"status": "none", "message": "No audits found"}
-
-        ev_path = row['evidence_folder_path']
-        p = Path(ev_path) if ev_path else None
+        cursor = conn.execute("SELECT id, unidade, area, ciclo, evidence_folder_path, evidence_map FROM auditorias ORDER BY id DESC LIMIT 5")
+        rows = cursor.fetchall()
         
-        folders = []
-        if p and p.exists():
-            folders = [str(d.relative_to(p)) for d in p.glob("*/*") if d.is_dir()][:20]
+        audits = []
+        for row in rows:
+            ev_path = row['evidence_folder_path']
+            p = Path(ev_path) if ev_path else None
+            exists = p.exists() if p and os.path.isabs(ev_path) else False
+            
+            audits.append({
+                "id": row['id'],
+                "name": f"{row['unidade']} - {row['area']} - {row['ciclo']}",
+                "path_in_db": ev_path,
+                "exists_on_disk": exists,
+                "map_size": len(json.loads(row['evidence_map'])) if row['evidence_map'] else 0
+            })
 
         import shutil
+        import platform
+        import tempfile
         total, used, free = shutil.disk_usage("/")
         
         return {
-            "audit_id": row['id'],
-            "audit_name": f"{row['unidade']} - {row['area']} - {row['ciclo']}",
-            "evidence_folder_in_db": ev_path,
-            "folder_exists_on_disk": p.exists() if p else False,
-            "total_files_on_disk": len(list(p.glob("**/*"))) if p and p.exists() else 0,
-            "sample_subdirs": folders,
-            "evidence_map_size": len(json.loads(row['evidence_map'])) if row['evidence_map'] else 0,
-            "uploads_dir_content": os.listdir("/app/data/uploads") if os.path.exists("/app/data/uploads") else [],
+            "environment": {
+                "os": platform.system(),
+                "node": platform.node(),
+                "cwd": os.getcwd(),
+                "tmp_dir": tempfile.gettempdir()
+            },
+            "recent_audits": audits,
+            "uploads_dir_content": os.listdir("data/uploads") if os.path.exists("data/uploads") else [],
             "disk_usage": {
-                "total_gb": round(total / (1024**3), 2),
-                "used_gb": round(used / (1024**3), 2),
-                "free_gb": round(free / (1024**3), 2),
-                "percent_used": round((used/total)*100, 2)
+                "total_gb": round(float(total) / (1024**3), 2),
+                "used_gb": round(float(used) / (1024**3), 2),
+                "free_gb": round(float(free) / (1024**3), 2),
+                "percent_used": round((float(used)/float(total))*100, 2)
             }
         }
     except Exception as e:
