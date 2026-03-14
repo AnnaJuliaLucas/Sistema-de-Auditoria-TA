@@ -94,27 +94,32 @@ def get_db_details():
     error = None
     
     potential_dbs = []
-    # Search aggressively in paths where Railway might store ephemeral or home data
-    search_paths = ["/app", home_dir, "/tmp", "/home"]
-    seen_paths = set()
+    # VERY aggressive search for ANY .db file in common system root paths
+    search_paths = ["/app", home_dir, "/tmp", "/data", "/mnt", "/var/lib"]
+    root_folders = []
+    try:
+        root_folders = os.listdir("/")
+    except: pass
     
+    seen_paths = set()
     for sp in search_paths:
         if os.path.exists(sp):
             try:
                 for root, dirs, files in os.walk(sp):
-                    if len(seen_paths) > 500: break # Safety limit
+                    if len(seen_paths) > 1000: break
                     for file in files:
-                        if file.endswith(".db"):
+                        if file.endswith(".db") or "auditoria" in file.lower():
                             full_p = os.path.join(root, file)
                             if full_p in seen_paths: continue
                             seen_paths.add(full_p)
                             try:
                                 stats = os.stat(full_p)
-                                potential_dbs.append({
-                                    "path": full_p,
-                                    "size": stats.st_size,
-                                    "mtime": datetime.fromtimestamp(stats.st_mtime).isoformat()
-                                })
+                                if stats.st_size > 1000: # Only interesting DBs
+                                    potential_dbs.append({
+                                        "path": full_p,
+                                        "size": stats.st_size,
+                                        "mtime": datetime.fromtimestamp(stats.st_mtime).isoformat()
+                                    })
                             except: pass
             except: pass
 
@@ -136,13 +141,14 @@ def get_db_details():
     return {
         "db_path": path_str,
         "home_path": home_dir,
+        "root_folders": root_folders,
         "db_path_exists": path_exists,
         "tables": tables,
         "auditoria_count": auditoria_count,
         "potential_lost_dbs": potential_dbs,
         "error": error,
         "cwd": os.getcwd(),
-        "env_railway": os.environ.get("RAILWAY_ENVIRONMENT")
+        "env_keys": [k for k in os.environ.keys() if "URL" in k or "DB" in k or "PATH" in k]
     }
 
 @router.get("/force-init")
