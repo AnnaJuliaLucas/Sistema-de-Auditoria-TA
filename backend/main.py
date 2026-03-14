@@ -2,11 +2,14 @@
 main.py — FastAPI application entry point.
 Sistema de Auditoria TA — Backend API
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 import os
+import traceback
+import shutil
 from pathlib import Path
 
 # Configure logging to both console and file in volume
@@ -29,13 +32,28 @@ if os.environ.get("RAILWAY_ENVIRONMENT"):
     os.environ["TMPDIR"] = str(volume_tmp)
     log.info(f"💾 Using volume for temp files: {volume_tmp}")
 
-from fastapi import Request
-from fastapi.responses import JSONResponse
-import traceback
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: initialize database."""
+    """Startup: initialize database and reclaim space."""
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        try:
+            # Emergency purge of uploads to allow SQLite to breathe
+            u_dir = "/app/data/uploads"
+            if os.path.exists(u_dir):
+                for entry in os.listdir(u_dir):
+                    entry_path = os.path.join(u_dir, entry)
+                    try:
+                        if os.path.isfile(entry_path): os.unlink(entry_path)
+                        elif os.path.isdir(entry_path): shutil.rmtree(entry_path)
+                    except: pass
+            
+            # Truncate log if too large
+            if os.path.exists(log_path) and os.path.getsize(log_path) > 5 * 1024 * 1024:
+                with open(log_path, "w") as f:
+                    f.write(f"--- Log Auto-Truncated for space relief ---\n")
+        except Exception as e:
+            print(f"Startup clean error: {e}")
+
     log.info("🚀 Iniciando Sistema de Auditoria TA — Backend API")
     try:
         from backend.db import init_db
@@ -43,10 +61,8 @@ async def lifespan(app: FastAPI):
         log.info("✅ Banco de dados inicializado")
     except Exception as e:
         log.error(f"❌ FALHA NA INICIALIZAÇÃO DO BANCO: {e}")
-        # We don't reraise to allow the app to boot and show errors on health check/routes
     yield
     log.info("🛑 Backend encerrado")
-
 
 app = FastAPI(
     title="Sistema de Auditoria TA",
@@ -55,146 +71,51 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# 1. CORS — ALWAYS AT THE TOP (must be first middleware)
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://sistema-de-auditoria-ta.vercel.app",
-        "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app",
-        "https://sistema-de-auditoria-ta-annajulialucas-projects.vercel.app",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:\d+",
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,
 )
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    err_trace = traceback.format_exc()
-    log.error(f"GLOBAL ERROR: {err_trace}")
-    
-    # Get origin for manual CORS injection on error
-    origin = request.headers.get("origin", "")
-    
-    # Return more detail during debugging phase
-    response = JSONResponse(
-        status_code=500,
-        content={
-            "detail": str(exc),
-            "type": type(exc).__name__,
-            "traceback": err_trace
-        }
-    )
-    
-    # MANUAL CORS INJECTION FOR ERROR RESPONSES
-    if origin:
-        import re
-        if (origin in ALLOWED_ORIGINS or 
-            bool(re.match(r"https://.*\.vercel\.app$", origin)) or 
-            bool(re.match(r"http://localhost:\d+$", origin))):
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "*"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-            
-    return response
-
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://sistema-de-auditoria-ta.vercel.app",
-    "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app",
-    "https://sistema-de-auditoria-ta-annajulialucas-projects.vercel.app",
-]
-
+# Global Error Handler
 @app.middleware("http")
-async def cors_and_log_middleware(request: Request, call_next):
-    origin = request.headers.get("origin", "")
-    log.info(f"Incoming request: {request.method} {request.url} from origin: {origin}")
-    
-    # Determine if origin is allowed (exact match or vercel.app domain)
-    import re
-    origin_allowed = (
-        origin in ALLOWED_ORIGINS
-        or bool(re.match(r"https://.*\.vercel\.app$", origin))
-        or bool(re.match(r"http://localhost:\d+$", origin))
-    )
-    
-    # Handle preflight OPTIONS requests directly
-    if request.method == "OPTIONS":
-        from fastapi.responses import Response as FastAPIResponse
-        resp = FastAPIResponse(status_code=200)
-        if origin_allowed and origin:
-            resp.headers["Access-Control-Allow-Origin"] = origin
-            resp.headers["Access-Control-Allow-Credentials"] = "true"
-            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            resp.headers["Access-Control-Allow-Headers"] = "*"
-            resp.headers["Access-Control-Max-Age"] = "3600"
-        return resp
-    
+async def catch_exceptions_middleware(request: Request, call_next):
     try:
-        response = await call_next(request)
-    except Exception as e:
-        # If call_next fails completely, fallback to the global handler 
-        # but the middleware should ideally not crash
-        return await global_exception_handler(request, e)
-    
-    # Inject CORS headers on all responses as a safety net
-    if origin_allowed and origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Expose-Headers"] = "*"
-    return response
+        return await call_next(request)
+    except Exception as exc:
+        log.error(f"GLOBAL ERROR: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(exc), "traceback": traceback.format_exc()}
+        )
 
-# Register routers
-from backend.routers.auditorias import router as auditorias_router
-from backend.routers.avaliacoes import router as avaliacoes_router
-from backend.routers.ia import router as ia_router
-from backend.routers.dashboard import router as dashboard_router
-from backend.routers.chat import router as chat_router
-from backend.routers.diario import router as diario_router
-from backend.routers.export import router as export_router
-from backend.routers.evidencias import router as evidencias_router
-from backend.routers.upload import router as upload_router
-from backend.routers.debug import router as debug_router
-from backend.routers.dados import router as dados_router
-from backend.routers.utils import router as utils_router
-from backend.routers.config import router as config_router
-from backend.routers.auth import router as auth_router
-
-app.include_router(upload_router)
-app.include_router(debug_router)
-app.include_router(auth_router)
-app.include_router(auditorias_router)
-app.include_router(avaliacoes_router)
-app.include_router(ia_router)
-app.include_router(dashboard_router)
-app.include_router(chat_router)
-app.include_router(diario_router)
-app.include_router(export_router)
-app.include_router(evidencias_router)
-app.include_router(dados_router)
-app.include_router(utils_router)
-app.include_router(config_router)
-
+# Routers
+from backend.routers import (
+    auditorias, avaliacoes, ia, dashboard, chat, diario, export, 
+    evidencias, upload, debug, dados, utils, config, auth
+)
+app.include_router(auditorias.router)
+app.include_router(avaliacoes.router)
+app.include_router(ia.router)
+app.include_router(dashboard.router)
+app.include_router(chat.router)
+app.include_router(diario.router)
+app.include_router(export.router)
+app.include_router(evidencias.router)
+app.include_router(upload.router)
+app.include_router(debug.router)
+app.include_router(dados.router)
+app.include_router(utils.router)
+app.include_router(config.router)
+app.include_router(auth.router)
 
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "version": "2.1.0"}
 
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "backend.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
