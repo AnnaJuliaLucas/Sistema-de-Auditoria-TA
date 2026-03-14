@@ -22,5 +22,5 @@ RUN mkdir -p /app/data/evidencias
 # Expor a porta 8000
 EXPOSE 8000
 
-# Comando para rodar
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Comando para rodar com timeout estendido para uploads pesados
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "600"]

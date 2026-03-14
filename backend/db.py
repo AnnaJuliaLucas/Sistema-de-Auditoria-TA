@@ -251,19 +251,26 @@ def init_db():
         import database as original_db
         original_db.init_db()
         
-        # Seed default user if empty
+        # Seed default users (Stronger seed - ensures admin exists)
         try:
+            from backend.auth import get_password_hash
+            hashed = get_password_hash("admin123")
             with get_db() as conn:
-                row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
-                if row and row['cnt'] == 0:
-                    from backend.auth import get_password_hash
-                    email = "admin@automateasy.com.br"
-                    hashed = get_password_hash("admin123")
-                    conn.execute("INSERT INTO users (email, password, role) VALUES (?, ?, ?)", 
-                                 (email, hashed, "admin"))
-                    log.info(f"Default user seeded: {email}")
+                # Sempre garante o admin com admin123 para evitar lockouts
+                conn.execute("""
+                    INSERT INTO users (email, password, role) 
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(email) DO UPDATE SET password=EXCLUDED.password
+                """, ("admin@automateasy.com.br", hashed, "admin"))
+                
+                # Garante que outros perfis conhecidos existam
+                for usr in ["anna@automateasy.com.br", "duda@automateasy.com.br"]:
+                    conn.execute("INSERT OR IGNORE INTO users (email, password, role) VALUES (?, ?, ?)", 
+                                 (usr, hashed, "auditor"))
+                conn.commit()
+                log.info("Default users seeded/verified")
         except Exception as e:
-            log.warning(f"Could not seed default user: {e}")
+            log.warning(f"Could not seed default users: {e}")
 
         # --- REPAIR MISSING COLUMNS (v15) ---
         try:
