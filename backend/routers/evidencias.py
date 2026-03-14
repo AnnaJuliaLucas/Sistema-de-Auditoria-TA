@@ -291,56 +291,64 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
     Serve an evidence file (image, PDF, video, document).
     The path must be an absolute path to a file on disk.
     """
-    decoded_path = urllib.parse.unquote(path)
-    file_path = Path(decoded_path)
-    
-    # Extract audit_id from path and check visibility
-    parts = file_path.parts
     try:
-        idx = parts.index("uploads")
-        audit_id = int(parts[idx+1])
-        aud = get_auditoria(audit_id)
-        if aud and aud.get("status") != "em_andamento":
-            raise HTTPException(status_code=403, detail="Acesso negado: Auditoria finalizada/não em andamento.")
-    except (ValueError, IndexError):
-        pass
+        decoded_path = urllib.parse.unquote(path)
+        file_path = Path(decoded_path)
+        log.info(f"Serve request: path='{path}' -> decoded='{decoded_path}' -> exists={file_path.exists()}")
+        
+        # Extract audit_id from path and check visibility
+        parts = file_path.parts
+        try:
+            idx = parts.index("uploads")
+            audit_id = int(parts[idx+1])
+            aud = get_auditoria(audit_id)
+            if aud and aud.get("status") != "em_andamento":
+                raise HTTPException(status_code=403, detail="Acesso negado: Auditoria finalizada/não em andamento.")
+        except (ValueError, IndexError):
+            pass
 
-    # Ensure file exists (lazy restore if missing)
-    ensure_local_file(file_path)
+        # Ensure file exists (lazy restore if missing)
+        ensure_local_file(file_path)
 
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {decoded_path}")
+        if not file_path.exists():
+            log.warning(f"File not found on disk: {file_path}")
+            raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {decoded_path}")
 
-    if not file_path.is_file():
-        raise HTTPException(status_code=400, detail="Caminho não é um arquivo")
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Caminho não é um arquivo")
 
-    ext = file_path.suffix.lower()
-    if ext not in EXTS_ALL:
-        raise HTTPException(status_code=400, detail=f"Tipo de arquivo não suportado: {ext}")
+        ext = file_path.suffix.lower()
+        if ext not in EXTS_ALL:
+            raise HTTPException(status_code=400, detail=f"Tipo de arquivo não suportado: {ext}")
 
-    media_types = {
-        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-        '.png': 'image/png', '.gif': 'image/gif',
-        '.bmp': 'image/bmp', '.webp': 'image/webp',
-        '.pdf': 'application/pdf',
-        '.mp4': 'video/mp4', '.avi': 'video/x-msvideo',
-        '.mov': 'video/quicktime', '.mkv': 'video/x-matroska',
-        '.webm': 'video/webm',
-        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        '.xls': 'application/vnd.ms-excel',
-        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        '.doc': 'application/msword',
-    }
+        media_types = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.png': 'image/png', '.gif': 'image/gif',
+            '.bmp': 'image/bmp', '.webp': 'image/webp',
+            '.pdf': 'application/pdf',
+            '.mp4': 'video/mp4', '.avi': 'video/x-msvideo',
+            '.mov': 'video/quicktime', '.mkv': 'video/x-matroska',
+            '.webm': 'video/webm',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.xls': 'application/vnd.ms-excel',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.doc': 'application/msword',
+        }
 
-    return FileResponse(
-        str(file_path),
-        media_type=media_types.get(ext, 'application/octet-stream'),
-        filename=file_path.name,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Cache-Control": "public, max-age=3600",
-        },
-    )
+        return FileResponse(
+            str(file_path),
+            media_type=media_types.get(ext, 'application/octet-stream'),
+            filename=file_path.name,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error serving file {path}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
