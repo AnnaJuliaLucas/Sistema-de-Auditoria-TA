@@ -8,6 +8,7 @@ Behavior:
 """
 
 import os
+import urllib.parse
 import json
 import shutil
 from pathlib import Path
@@ -344,6 +345,18 @@ def _init_postgres():
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
+
+            -- Ensure system_config has a Primary Key for ON CONFLICT
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_index i 
+                    JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) 
+                    WHERE i.indrelid = 'system_config'::regclass AND i.indisprimary
+                ) THEN 
+                    ALTER TABLE system_config ADD PRIMARY KEY (key); 
+                END IF; 
+            END $$;
 
             CREATE TABLE IF NOT EXISTS knowledge_base (
                 id SERIAL PRIMARY KEY,

@@ -9,6 +9,9 @@ import sys
 import re
 import os
 import urllib.parse
+import logging
+
+log = logging.getLogger("auditoria_evidencias")
 
 _parent = str(Path(__file__).resolve().parent.parent.parent)
 if _parent not in sys.path:
