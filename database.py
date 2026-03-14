@@ -24,19 +24,20 @@ import logging
 # ─────────────────────────────────────────────────────────────────────────────
 import os
 
-if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
+IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+IS_DOCKER = os.path.exists("/.dockerenv") or os.environ.get("RAILWAY_ENVIRONMENT")
+
+if IS_VERCEL:
     BASE_DIR = Path("/tmp/AuditoriaTA")
+elif IS_DOCKER:
+    BASE_DIR = Path("/app/data")
 else:
     BASE_DIR = Path(r"C:\AuditoriaTA")
+    if not BASE_DIR.drive:
+        BASE_DIR = Path.home() / "AuditoriaTA"
 
 DADOS_DIR  = BASE_DIR / "dados"
 BACKUP_DIR = BASE_DIR / "dados" / "backups"
-
-# Fallback para ambientes de desenvolvimento (Linux/Mac/sandbox)
-if not BASE_DIR.drive and not (os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV")):
-    BASE_DIR   = Path.home() / "AuditoriaTA"
-    DADOS_DIR  = BASE_DIR / "dados"
-    BACKUP_DIR = BASE_DIR / "dados" / "backups"
 
 DB_PATH = DADOS_DIR / "auditoria_ta.db"
 
