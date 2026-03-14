@@ -224,6 +224,15 @@ def _init_postgres():
                 UNIQUE(unidade, area, ciclo)
             );
 
+            -- Migration: Add evidence_map if it doesn't exist
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='auditorias' AND column_name='evidence_map') THEN
+                    ALTER TABLE auditorias ADD COLUMN evidence_map TEXT DEFAULT '{}';
+                END IF;
+            END $$;
+
             CREATE TABLE IF NOT EXISTS avaliacoes (
                 id SERIAL PRIMARY KEY,
                 auditoria_id INTEGER REFERENCES auditorias(id) ON DELETE CASCADE,
@@ -249,9 +258,17 @@ def _init_postgres():
                 ia_pontos_faltantes TEXT,
                 ia_analise_detalhada TEXT,
                 ia_status TEXT,
-                data_atualizacao TEXT,
-                UNIQUE(auditoria_id, pratica_num, subitem_idx)
+                data_atualizacao TEXT
             );
+
+            -- Migration: Add UNIQUE constraint to avaliacoes if it doesn't exist
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                               WHERE constraint_name='unique_audit_item' AND table_name='avaliacoes') THEN
+                    ALTER TABLE avaliacoes ADD CONSTRAINT unique_audit_item UNIQUE (auditoria_id, pratica_num, subitem_idx);
+                END IF;
+            END $$;
 
             CREATE TABLE IF NOT EXISTS audit_log (
                 id SERIAL PRIMARY KEY,
@@ -328,7 +345,7 @@ def _init_postgres():
         conn.commit()
         cur.close()
         conn.close()
-        log.info("✅ PostgreSQL tables created/verified")
+        log.info("✅ PostgreSQL tables and migrations verified")
     except Exception as e:
         log.error(f"❌ Error in _init_postgres: {e}")
 
