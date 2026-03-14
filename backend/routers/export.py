@@ -161,8 +161,9 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                         s_idx_internal = 0
                     elif current_p_num is not None and row_cells[1]:
                         # A coluna I é a 9ª coluna (A=0, B=1, ... I=8)
-                        # Usar índice 8 explicitamente em vez de -1 para evitar capturar colunas vazias à direita
-                        nota_sa = _safe_int(row_cells[8])
+                        val_raw = row_cells[8]
+                        nota_sa = _safe_int(val_raw)
+                        log.info(f"Audit {audit_id}: P{current_p_num} S{s_idx_internal} -> Raw Col I: '{val_raw}' -> Nota SA: {nota_sa}")
                         conn.execute("""
                             UPDATE avaliacoes
                             SET nota_self_assessment=?
