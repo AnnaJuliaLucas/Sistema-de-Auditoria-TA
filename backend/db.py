@@ -23,9 +23,13 @@ log = logging.getLogger("auditoria_db")
 # PATH CONFIGURATION (Shared)
 # ─────────────────────────────────────────────────────────────────────────────
 IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+IS_DOCKER = os.path.exists("/.dockerenv") or os.environ.get("RAILWAY_ENVIRONMENT")
 
 if IS_VERCEL:
     BASE_DIR = Path("/tmp/AuditoriaTA")
+elif IS_DOCKER:
+    # No Railway ou Docker, usamos o volume persistente montado em /app/data
+    BASE_DIR = Path("/app/data")
 else:
     BASE_DIR = Path(r"C:\AuditoriaTA")
     if not BASE_DIR.drive:

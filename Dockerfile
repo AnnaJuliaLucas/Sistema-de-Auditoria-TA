@@ -1,27 +1,26 @@
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --only=production
+# Usar uma imagem Python leve
+FROM python:3.11-slim
 
-FROM node:20-alpine AS builder
+# Definir diretório de trabalho
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+# Instalar dependências de sistema (psycopg2-binary não precisa, mas se fosse compilar precisaria)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar requirements e instalar
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar o resto do código
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
 
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
+# Criar pastas para persistência (volumes do Railway)
+RUN mkdir -p /app/data/evidencias
 
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+# Expor a porta 8000
+EXPOSE 8000
 
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-EXPOSE 3000
-ENV PORT=3000
-CMD ["node", "server.js"]
+# Comando para rodar
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
