@@ -78,7 +78,7 @@ def get_db_status():
 @router.get("/db-details")
 def get_db_details():
     """Returns detailed SQLite info for troubleshooting."""
-    from backend.db import DB_PATH
+    from backend.db import DB_PATH, USE_POSTGRES, DATABASE_URL
     import sqlite3
     import os
     
@@ -104,6 +104,26 @@ def get_db_details():
         "db_dir_exists": dir_exists,
         "tables": tables,
         "error": error,
+        "use_postgres": USE_POSTGRES,
+        "has_db_url": bool(DATABASE_URL),
         "env_railway": os.environ.get("RAILWAY_ENVIRONMENT"),
         "env_docker": os.path.exists("/.dockerenv")
     }
+
+@router.get("/force-init")
+def force_init_db():
+    """Manually triggers database initialization and returns the result/error."""
+    try:
+        import traceback
+        from backend.db import init_db
+        log.info("Manual init_db triggered via API")
+        init_db()
+        return {"status": "success", "message": "Database initialization completed successfully"}
+    except Exception as e:
+        err = traceback.format_exc()
+        log.error(f"Manual init_db FAILED: {err}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": err
+        }
