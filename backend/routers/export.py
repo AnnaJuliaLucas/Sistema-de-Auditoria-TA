@@ -83,13 +83,19 @@ async def criar_auditoria(
             shutil.copyfileobj(assessment_file.file, buffer)
         assessment_path = str(file_path.absolute())
     elif assessment_url:
-        import urllib.request
-        try:
+        if os.path.isabs(assessment_url) and os.path.exists(assessment_url):
+            # It's a local file from direct upload
             file_path = audit_dir / f"assessment_{audit_id}.xlsx"
-            urllib.request.urlretrieve(assessment_url, file_path)
+            shutil.move(assessment_url, file_path)
             assessment_path = str(file_path.absolute())
-        except Exception as e:
-            print(f"Failed to download assessment from URL: {e}")
+        else:
+            import urllib.request
+            try:
+                file_path = audit_dir / f"assessment_{audit_id}.xlsx"
+                urllib.request.urlretrieve(assessment_url, file_path)
+                assessment_path = str(file_path.absolute())
+            except Exception as e:
+                print(f"Failed to download assessment from URL: {e}")
 
     # 2. Process Evidence ZIP
     if evidence_zip and evidence_zip.filename:
@@ -106,18 +112,28 @@ async def criar_auditoria(
             print(f"Failed to extract uploaded zip: {e}")
             evidence_path = str(extract_dir.absolute())
     elif evidence_url:
-        import urllib.request
-        try:
+        if os.path.isabs(evidence_url) and os.path.exists(evidence_url):
+            # It's a local file from direct upload
             zip_path = audit_dir / f"evidences_{audit_id}.zip"
-            urllib.request.urlretrieve(evidence_url, zip_path)
+            shutil.move(evidence_url, zip_path)
             
             extract_dir = audit_dir / "evidences"
             from backend.routers.evidencias import extract_zip_robustly
             extract_zip_robustly(zip_path, extract_dir)
             evidence_path = str(extract_dir.absolute())
-        except Exception as e:
-            print(f"Failed to download/extract evidence from URL: {e}")
-            evidence_path = evidence_url # Fallback to URL string if extraction fails
+        else:
+            import urllib.request
+            try:
+                zip_path = audit_dir / f"evidences_{audit_id}.zip"
+                urllib.request.urlretrieve(evidence_url, zip_path)
+                
+                extract_dir = audit_dir / "evidences"
+                from backend.routers.evidencias import extract_zip_robustly
+                extract_zip_robustly(zip_path, extract_dir)
+                evidence_path = str(extract_dir.absolute())
+            except Exception as e:
+                print(f"Failed to download/extract evidence from URL: {e}")
+                evidence_path = evidence_url # Fallback to URL string if extraction fails
 
     # Update audit record with actual paths and initial evidence map
     evidence_map = {}

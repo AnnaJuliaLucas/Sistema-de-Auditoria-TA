@@ -143,12 +143,14 @@ from backend.routers.chat import router as chat_router
 from backend.routers.diario import router as diario_router
 from backend.routers.export import router as export_router
 from backend.routers.evidencias import router as evidencias_router
+from backend.routers.upload import router as upload_router
+from backend.routers.debug import router as debug_router
 from backend.routers.dados import router as dados_router
 from backend.routers.utils import router as utils_router
 from backend.routers.config import router as config_router
 from backend.routers.auth import router as auth_router
-from backend.routers.debug import router as debug_router
 
+app.include_router(upload_router)
 app.include_router(debug_router)
 app.include_router(auth_router)
 app.include_router(auditorias_router)

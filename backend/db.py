@@ -265,6 +265,18 @@ def init_db():
         except Exception as e:
             log.warning(f"Could not seed default user: {e}")
 
+        # --- REPAIR MISSING COLUMNS (v15) ---
+        try:
+            with _sqlite_connect() as conn:
+                for col_name, col_type in [("evidence_map", "TEXT DEFAULT '{}'"), ("evidence_zip_url", "TEXT DEFAULT ''")]:
+                    try:
+                        conn.execute(f"ALTER TABLE auditorias ADD COLUMN {col_name} {col_type}")
+                    except sqlite3.OperationalError:
+                        pass # already exists
+                conn.commit()
+        except Exception as repair_err:
+            log.warning(f"Failed to perform defensive migration: {repair_err}")
+
     log.info("Database initialized")
 
 

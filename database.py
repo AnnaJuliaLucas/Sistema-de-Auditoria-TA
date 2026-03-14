@@ -450,6 +450,15 @@ def _ensure_critical_tables(conn):
             role TEXT DEFAULT 'auditor'
         );
     """)
+    # Colunas novas em auditorias (Migração v15) — defensivo
+    for col in [
+        ("evidence_map", "TEXT DEFAULT '{}'"),
+        ("evidence_zip_url", "TEXT DEFAULT ''")
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE auditorias ADD COLUMN {col[0]} {col[1]}")
+        except sqlite3.OperationalError:
+            pass  # Já existe
     conn.commit()
 
 

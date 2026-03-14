@@ -245,6 +245,16 @@ export const api = {
   getAllEvidences: (auditoriaId: number, refresh = false) => 
     fetchAPI<Record<string, any>>(`/api/evidencias/audit/${auditoriaId}/all${refresh ? '?refresh=true' : ''}`),
   getAllCriterios: () => fetchAPI<Record<string, any>>("/api/evidencias/criterios/all"),
+  
+  uploadDirect: (file: File, type: "evidence" | "assessment") => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("type", type);
+    return fetchAPI<{ ok: boolean; url: string; filename: string }>("/api/upload/direct", {
+      method: "POST",
+      body: formData,
+    });
+  }
 };
 
 // ─── Utility Functions ───────────────────────────────────────────────────────

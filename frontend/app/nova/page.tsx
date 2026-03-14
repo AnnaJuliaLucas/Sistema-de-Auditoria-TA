@@ -36,25 +36,41 @@ export default function NovaAuditoriaPage() {
             let finalEvidenceUrl = evidenceUrl;
             let finalAssessmentUrl = "";
 
-            // Vercel Blob: Faz o upload direto na nuvem pelo navegador!
-            if (evidenceFile) {
+            const smartUpload = async (file: File, type: "evidence" | "assessment") => {
                 const uniqueId = Math.random().toString(36).substring(2, 8);
-                const safeName = `${uniqueId}_${evidenceFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
-                const blob = await upload(safeName, evidenceFile, {
-                    access: 'public',
-                    handleUploadUrl: `${window.location.origin}/upload-token`,
-                });
-                finalEvidenceUrl = blob.url;
+                const safeName = `${uniqueId}_${file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+                
+                // Tenta Vercel Blob apenas se não houver erro crítico conhecido
+                const skipVercel = localStorage.getItem("skip_vercel_blob") === "true";
+                
+                if (!skipVercel) {
+                    try {
+                        console.log(`Tentando Vercel Blob para ${file.name}...`);
+                        const blob = await upload(safeName, file, {
+                            access: 'public',
+                            handleUploadUrl: `${window.location.origin}/upload-token`,
+                        });
+                        return blob.url;
+                    } catch (err: any) {
+                        console.error("Erro no Vercel Blob:", err);
+                        if (err.message?.includes("suspended") || err.message?.includes("forbidden")) {
+                            localStorage.setItem("skip_vercel_blob", "true");
+                        }
+                        // Continue para fallback
+                    }
+                }
+
+                console.log(`Usando upload direto para o Railway (fallback) para ${file.name}...`);
+                const result = await api.uploadDirect(file, type);
+                return result.url;
+            };
+
+            if (evidenceFile) {
+                finalEvidenceUrl = await smartUpload(evidenceFile, "evidence");
             }
 
             if (assessmentFile) {
-                const uniqueId = Math.random().toString(36).substring(2, 8);
-                const safeName = `${uniqueId}_${assessmentFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
-                const blob = await upload(safeName, assessmentFile, {
-                    access: 'public',
-                    handleUploadUrl: `${window.location.origin}/upload-token`,
-                });
-                finalAssessmentUrl = blob.url;
+                finalAssessmentUrl = await smartUpload(assessmentFile, "assessment");
             }
 
             const formData = new FormData();
@@ -168,6 +184,24 @@ export default function NovaAuditoriaPage() {
                             placeholder="https://sua-empresa.sharepoint.com/..."
                         />
                     </div>
+                </div>
+
+                {/* Opção de Emergência */}
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-900/10 border border-blue-700/20">
+                    <input 
+                        type="checkbox" 
+                        id="forceDirect"
+                        checked={localStorage.getItem("skip_vercel_blob") === "true"}
+                        onChange={(e) => {
+                            localStorage.setItem("skip_vercel_blob", e.target.checked ? "true" : "false");
+                            // Forçar re-render
+                            setCreating(false); 
+                        }}
+                        className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500/50"
+                    />
+                    <label htmlFor="forceDirect" className="text-sm text-slate-400 cursor-pointer select-none">
+                        🚀 <strong>Modo de Emergência:</strong> Ignorar Vercel Blob e usar servidor Railway (Use se o erro "suspended" persistir)
+                    </label>
                 </div>
 
                 {error && (
