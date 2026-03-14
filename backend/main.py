@@ -5,8 +5,10 @@ Sistema de Auditoria TA — Backend API
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import logging
 import os
 from pathlib import Path
+
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("auditoria_api")
 

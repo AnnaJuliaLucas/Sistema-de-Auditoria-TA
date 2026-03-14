@@ -287,7 +287,7 @@ def clean_tmp():
             if os.path.isfile(item_path) or os.path.islink(item_path):
                 os.unlink(item_path)
                 count += 1
-            elif os.path.is_dir(item_path):
+            elif os.path.isdir(item_path):
                 shutil.rmtree(item_path)
                 count += 1
         except Exception as e:
