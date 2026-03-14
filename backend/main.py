@@ -5,10 +5,17 @@ Sistema de Auditoria TA — Backend API
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-import logging
-
+import os
+from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("auditoria_api")
+
+# Railway specific: if we have a volume, use it for temp files to avoid [Errno 28] No space left on device
+if os.environ.get("RAILWAY_ENVIRONMENT"):
+    volume_tmp = Path("/app/data/tmp")
+    volume_tmp.mkdir(parents=True, exist_ok=True)
+    os.environ["TMPDIR"] = str(volume_tmp)
+    log.info(f"💾 Using volume for temp files: {volume_tmp}")
 
 from fastapi import Request
 from fastapi.responses import JSONResponse

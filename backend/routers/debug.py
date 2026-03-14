@@ -214,45 +214,83 @@ def check_evidences():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     try:
-        cursor = conn.execute("SELECT id, unidade, area, ciclo, evidence_folder_path, evidence_map FROM auditorias ORDER BY id DESC LIMIT 5")
+        from backend.db import DB_PATH
+        cursor = conn.execute("SELECT id, unidade, area, ciclo, evidence_folder_path FROM auditorias ORDER BY id DESC")
         rows = cursor.fetchall()
         
         audits = []
-        for row in rows:
+        for row in rows[:10]:
             ev_path = row['evidence_folder_path']
-            p = Path(ev_path) if ev_path else None
-            exists = p.exists() if p and os.path.isabs(ev_path) else False
-            
             audits.append({
                 "id": row['id'],
                 "name": f"{row['unidade']} - {row['area']} - {row['ciclo']}",
                 "path_in_db": ev_path,
-                "exists_on_disk": exists,
-                "map_size": len(json.loads(row['evidence_map'])) if row['evidence_map'] else 0
+                "exists_on_disk": os.path.exists(ev_path) if ev_path and os.path.isabs(ev_path) else False
             })
 
         import shutil
         import platform
         import tempfile
-        total, used, free = shutil.disk_usage("/")
+        
+        usage_main = shutil.disk_usage("/")
+        usage_tmp = shutil.disk_usage("/tmp")
+        usage_data = shutil.disk_usage("/app/data") if os.path.exists("/app/data") else usage_main
         
         return {
             "environment": {
                 "os": platform.system(),
                 "node": platform.node(),
                 "cwd": os.getcwd(),
-                "tmp_dir": tempfile.gettempdir()
+                "db_path": str(DB_PATH)
             },
+            "total_audits_in_db": len(rows),
             "recent_audits": audits,
             "uploads_dir_content": os.listdir("data/uploads") if os.path.exists("data/uploads") else [],
             "disk_usage": {
-                "total_gb": round(float(total) / (1024**3), 2),
-                "used_gb": round(float(used) / (1024**3), 2),
-                "free_gb": round(float(free) / (1024**3), 2),
-                "percent_used": round((float(used)/float(total))*100, 2)
+                "root": {"free_gb": round(float(usage_main.free) / (1024**3), 2), "total_gb": round(float(usage_main.total) / (1024**3), 2)},
+                "tmp": {"free_gb": round(float(usage_tmp.free) / (1024**3), 2), "total_gb": round(float(usage_tmp.total) / (1024**3), 2)},
+                "data": {"free_gb": round(float(usage_data.free) / (1024**3), 2), "total_gb": round(float(usage_data.total) / (1024**3), 2)}
             }
         }
     except Exception as e:
         return {"error": str(e)}
     finally:
         conn.close()
+
+@router.get("/fix-paths")
+def fix_paths():
+    """Converts absolute Windows paths to local Railway paths."""
+    from backend.db import get_db
+    with get_db() as conn:
+        rows = conn.execute("SELECT id, evidence_folder_path FROM auditorias").fetchall()
+        count = 0
+        for row in rows:
+            path = row['evidence_folder_path']
+            if path and (path.startswith("C:") or "\\" in path):
+                # It's a Windows path, translate to Railway data path
+                new_path = f"/app/data/uploads/{row['id']}/evidences"
+                conn.execute("UPDATE auditorias SET evidence_folder_path=? WHERE id=?", (new_path, row['id']))
+                count += 1
+        return {"status": "success", "fixed_count": count}
+
+@router.get("/clean-tmp")
+def clean_tmp():
+    """Manually clear the /tmp directory to avoid No Space Left on Device."""
+    import shutil
+    import os
+    tmp = "/tmp"
+    count = 0
+    errors = []
+    for item in os.listdir(tmp):
+        item_path = os.path.join(tmp, item)
+        try:
+            if os.path.isfile(item_path) or os.path.islink(item_path):
+                os.unlink(item_path)
+                count += 1
+            elif os.path.is_dir(item_path):
+                shutil.rmtree(item_path)
+                count += 1
+        except Exception as e:
+            errors.append(f"{item}: {str(e)}")
+            
+    return {"status": "success", "cleaned_items": count, "errors": errors}
