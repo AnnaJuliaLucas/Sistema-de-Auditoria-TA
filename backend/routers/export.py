@@ -70,6 +70,10 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
             from backend.routers.evidencias import extract_zip_robustly
             extract_zip_robustly(zip_path, extract_dir)
             evidence_path = str(extract_dir.absolute())
+            # Cleanup ZIP after extraction to save space
+            if zip_path.exists():
+                os.remove(zip_path)
+                log.info(f"Removed temporary ZIP: {zip_path}")
         except Exception as e:
             log.error(f"Failed to extract: {e}")
             evidence_path = str(extract_dir.absolute())
@@ -94,6 +98,10 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                 from backend.routers.evidencias import extract_zip_robustly
                 extract_zip_robustly(zip_path, extract_dir)
                 evidence_path = str(extract_dir.absolute())
+                # Cleanup ZIP after extraction to save space
+                if zip_path.exists():
+                    os.remove(zip_path)
+                    log.info(f"Removed downloaded ZIP: {zip_path}")
             except Exception as e:
                 log.error(f"Failed to download/extract URL zip: {e}")
 
