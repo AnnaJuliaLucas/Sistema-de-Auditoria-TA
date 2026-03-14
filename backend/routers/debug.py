@@ -259,6 +259,23 @@ def check_evidences():
     finally:
         conn.close()
 
+@router.get("/inspect-db")
+def inspect_db():
+    """Returns raw rows from auditorias table for debugging."""
+    try:
+        from backend.db import get_db
+        with get_db() as conn:
+            rows = conn.execute("SELECT id, unidade, area, ciclo, evidence_folder_path FROM auditorias").fetchall()
+            users = conn.execute("SELECT id, email, role FROM users").fetchall()
+            return {
+                "auditorias_count": len(rows),
+                "auditorias": [dict(r) for r in rows],
+                "users_count": len(users),
+                "users": [dict(r) for r in users]
+            }
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
 @router.get("/fix-paths")
 def fix_paths():
     """Converts absolute Windows paths to local Railway paths."""
@@ -269,11 +286,12 @@ def fix_paths():
             rows = conn.execute("SELECT id, evidence_folder_path FROM auditorias").fetchall()
             for row in rows:
                 path = row['evidence_folder_path']
-                if path and (path.startswith("C:") or "\\" in path or "OneDrive" in path):
+                # Search for any Windows-like patterns or OneDrive
+                if path and (":" in path or "\\" in path or "OneDrive" in path or "Users" in path):
                     new_path = f"/app/data/uploads/{row['id']}/evidences"
                     conn.execute("UPDATE auditorias SET evidence_folder_path=? WHERE id=?", (new_path, row['id']))
                     fixed.append({"id": row['id'], "old": path, "new": new_path})
-            # Explicit commit check
+            
             if hasattr(conn, 'commit'): conn.commit()
             
         return {"status": "success", "fixed_count": len(fixed), "details": fixed}
