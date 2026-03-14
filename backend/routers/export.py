@@ -4,7 +4,7 @@ routers/export.py — Excel export and new audit creation.
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from backend.db import get_db, get_auditoria, carregar_avaliacoes, _safe_int
+from backend.db import get_db, get_auditoria, carregar_avaliacoes, _safe_int, USE_POSTGRES
 from datetime import datetime
 from pathlib import Path
 import tempfile
