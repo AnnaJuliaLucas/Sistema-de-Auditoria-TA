@@ -6,6 +6,7 @@ import os
 import sys
 import platform
 import logging
+from datetime import datetime
 
 router = APIRouter(prefix="/api/debug", tags=["debug"])
 log = logging.getLogger("auditoria_debug")
@@ -81,19 +82,45 @@ def get_db_details():
     from backend.db import DB_PATH, USE_POSTGRES, DATABASE_URL
     import sqlite3
     import os
+    from pathlib import Path
     
     path_str = str(DB_PATH)
     path_exists = os.path.exists(path_str)
     dir_exists = os.path.exists(str(DB_PATH.parent))
     
     tables = []
+    auditoria_count = 0
     error = None
+    
+    # List other potential DB files to find lost data
+    potential_dbs = []
+    search_paths = ["/app", "/home/railway", "/tmp"]
+    for sp in search_paths:
+        if os.path.exists(sp):
+            try:
+                for root, dirs, files in os.walk(sp):
+                    for file in files:
+                        if file.endswith(".db"):
+                            full_p = os.path.join(root, file)
+                            potential_dbs.append({
+                                "path": full_p,
+                                "size": os.path.getsize(full_p),
+                                "mtime": datetime.fromtimestamp(os.path.getmtime(full_p)).isoformat()
+                            })
+            except Exception:
+                pass
+
     try:
         if path_exists:
             conn = sqlite3.connect(path_str)
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
+            
+            if "auditorias" in tables:
+                row = conn.execute("SELECT COUNT(*) as cnt FROM auditorias").fetchone()
+                auditoria_count = row["cnt"]
             conn.close()
     except Exception as e:
         error = str(e)
@@ -103,11 +130,12 @@ def get_db_details():
         "db_path_exists": path_exists,
         "db_dir_exists": dir_exists,
         "tables": tables,
+        "auditoria_count": auditoria_count,
+        "potential_lost_dbs": potential_dbs,
         "error": error,
         "use_postgres": USE_POSTGRES,
-        "has_db_url": bool(DATABASE_URL),
         "env_railway": os.environ.get("RAILWAY_ENVIRONMENT"),
-        "env_docker": os.path.exists("/.dockerenv")
+        "cwd": os.getcwd()
     }
 
 @router.get("/force-init")
