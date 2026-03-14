@@ -58,9 +58,6 @@ def get_db_status():
         parts = DATABASE_URL.split("@")
         masked_url = parts[-1] if len(parts) > 1 else "configured"
 
-    return {
-        "use_postgres": USE_POSTGRES,
-        "database_url_masked": masked_url,
     # Try import inside to check availability
     try:
         import psycopg2
