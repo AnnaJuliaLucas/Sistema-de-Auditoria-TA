@@ -221,6 +221,29 @@ def init_db():
         _init_postgres()
     else:
         ensure_dirs()
+        
+        # --- EMERGENCY DATA RESTORE ---
+        # Se estamos no Cloud e o banco atual está vazio, mas temos um migrate_data_local.db
+        migration_file = Path("migrate_data_local.db")
+        if IS_DOCKER and migration_file.exists():
+            try:
+                # Verificar se o banco atual realmente está vazio
+                conn_test = _sqlite_connect()
+                has_data = False
+                try:
+                    res = conn_test.execute("SELECT COUNT(*) FROM auditorias").fetchone()
+                    if res and res[0] > 0:
+                        has_data = True
+                except: pass
+                conn_test.close()
+                
+                if not has_data:
+                    log.info(f"Restoring database from {migration_file} to {DB_PATH}")
+                    shutil.copy2(migration_file, DB_PATH)
+                    log.info("Restore COMPLETED")
+            except Exception as restore_err:
+                log.error(f"Failed to restore data: {restore_err}")
+
         import sys
         parent = str(Path(__file__).resolve().parent.parent)
         if parent not in sys.path:
