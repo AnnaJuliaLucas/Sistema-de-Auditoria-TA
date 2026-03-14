@@ -57,23 +57,6 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# CORS — allow Next.js frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "https://sistema-de-auditoria-ta.vercel.app",
-        "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app", # Permite subdomínios da Vercel
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Register routers
 from backend.routers.auditorias import router as auditorias_router
 from backend.routers.avaliacoes import router as avaliacoes_router
@@ -102,6 +85,16 @@ app.include_router(evidencias_router)
 app.include_router(dados_router)
 app.include_router(utils_router)
 app.include_router(config_router)
+
+# CORS — MASSIVE SIMPLIFICATION FOR DEBUGGING
+# We allow everything to confirm if CORS is truly the culprit
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False, # Must be False for "*"
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/health")
