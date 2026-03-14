@@ -79,36 +79,44 @@ def get_db_status():
 @router.get("/db-details")
 def get_db_details():
     """Returns detailed SQLite info for troubleshooting."""
-    from backend.db import DB_PATH, USE_POSTGRES, DATABASE_URL
+    from backend.db import DB_PATH, USE_POSTGRES
     import sqlite3
     import os
     from pathlib import Path
+    from datetime import datetime
     
+    home_dir = str(Path.home())
     path_str = str(DB_PATH)
     path_exists = os.path.exists(path_str)
-    dir_exists = os.path.exists(str(DB_PATH.parent))
     
     tables = []
     auditoria_count = 0
     error = None
     
-    # List other potential DB files to find lost data
     potential_dbs = []
-    search_paths = ["/app", "/home/railway", "/tmp"]
+    # Search aggressively in paths where Railway might store ephemeral or home data
+    search_paths = ["/app", home_dir, "/tmp", "/home"]
+    seen_paths = set()
+    
     for sp in search_paths:
         if os.path.exists(sp):
             try:
                 for root, dirs, files in os.walk(sp):
+                    if len(seen_paths) > 500: break # Safety limit
                     for file in files:
                         if file.endswith(".db"):
                             full_p = os.path.join(root, file)
-                            potential_dbs.append({
-                                "path": full_p,
-                                "size": os.path.getsize(full_p),
-                                "mtime": datetime.fromtimestamp(os.path.getmtime(full_p)).isoformat()
-                            })
-            except Exception:
-                pass
+                            if full_p in seen_paths: continue
+                            seen_paths.add(full_p)
+                            try:
+                                stats = os.stat(full_p)
+                                potential_dbs.append({
+                                    "path": full_p,
+                                    "size": stats.st_size,
+                                    "mtime": datetime.fromtimestamp(stats.st_mtime).isoformat()
+                                })
+                            except: pass
+            except: pass
 
     try:
         if path_exists:
@@ -127,15 +135,14 @@ def get_db_details():
         
     return {
         "db_path": path_str,
+        "home_path": home_dir,
         "db_path_exists": path_exists,
-        "db_dir_exists": dir_exists,
         "tables": tables,
         "auditoria_count": auditoria_count,
         "potential_lost_dbs": potential_dbs,
         "error": error,
-        "use_postgres": USE_POSTGRES,
-        "env_railway": os.environ.get("RAILWAY_ENVIRONMENT"),
-        "cwd": os.getcwd()
+        "cwd": os.getcwd(),
+        "env_railway": os.environ.get("RAILWAY_ENVIRONMENT")
     }
 
 @router.get("/force-init")
