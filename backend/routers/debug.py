@@ -6,6 +6,7 @@ import os
 import sys
 import platform
 import logging
+import traceback
 from datetime import datetime
 
 router = APIRouter(prefix="/api/debug", tags=["debug"])
@@ -253,44 +254,56 @@ def check_evidences():
             }
         }
     except Exception as e:
-        return {"error": str(e)}
+        log.error(f"check_evidences error: {e}")
+        return {"error": str(e), "traceback": traceback.format_exc()}
     finally:
         conn.close()
 
 @router.get("/fix-paths")
 def fix_paths():
     """Converts absolute Windows paths to local Railway paths."""
-    from backend.db import get_db
-    with get_db() as conn:
-        rows = conn.execute("SELECT id, evidence_folder_path FROM auditorias").fetchall()
-        count = 0
-        for row in rows:
-            path = row['evidence_folder_path']
-            if path and (path.startswith("C:") or "\\" in path):
-                # It's a Windows path, translate to Railway data path
-                new_path = f"/app/data/uploads/{row['id']}/evidences"
-                conn.execute("UPDATE auditorias SET evidence_folder_path=? WHERE id=?", (new_path, row['id']))
-                count += 1
-        return {"status": "success", "fixed_count": count}
+    try:
+        from backend.db import get_db
+        fixed = []
+        with get_db() as conn:
+            rows = conn.execute("SELECT id, evidence_folder_path FROM auditorias").fetchall()
+            for row in rows:
+                path = row['evidence_folder_path']
+                if path and (path.startswith("C:") or "\\" in path or "OneDrive" in path):
+                    new_path = f"/app/data/uploads/{row['id']}/evidences"
+                    conn.execute("UPDATE auditorias SET evidence_folder_path=? WHERE id=?", (new_path, row['id']))
+                    fixed.append({"id": row['id'], "old": path, "new": new_path})
+            # Explicit commit check
+            if hasattr(conn, 'commit'): conn.commit()
+            
+        return {"status": "success", "fixed_count": len(fixed), "details": fixed}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
 
 @router.get("/clean-tmp")
 def clean_tmp():
     """Manually clear the /tmp directory to avoid No Space Left on Device."""
-    import shutil
-    import os
-    tmp = "/tmp"
-    count = 0
-    errors = []
-    for item in os.listdir(tmp):
-        item_path = os.path.join(tmp, item)
-        try:
-            if os.path.isfile(item_path) or os.path.islink(item_path):
-                os.unlink(item_path)
-                count += 1
-            elif os.path.isdir(item_path):
-                shutil.rmtree(item_path)
-                count += 1
-        except Exception as e:
-            errors.append(f"{item}: {str(e)}")
+    try:
+        import shutil
+        import os
+        tmp = "/tmp"
+        if not os.path.exists(tmp):
+            return {"status": "error", "message": "/tmp not found"}
             
-    return {"status": "success", "cleaned_items": count, "errors": errors}
+        count = 0
+        errors = []
+        for item in os.listdir(tmp):
+            item_path = os.path.join(tmp, item)
+            try:
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    os.unlink(item_path)
+                    count += 1
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path, ignore_errors=True)
+                    count += 1
+            except Exception as e:
+                errors.append(f"{item}: {str(e)}")
+                
+        return {"status": "success", "cleaned_items": count, "errors": errors}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
