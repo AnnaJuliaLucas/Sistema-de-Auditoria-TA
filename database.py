@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import logging
+import pandas as pd
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURAÇÃO DE CAMINHOS
