@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sistema de Auditoria TA",
     description="API para o Sistema de Auditoria de Automação Industrial",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -187,7 +187,7 @@ app.include_router(config_router)
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "version": "2.0.0"}
+    return {"status": "ok", "version": "2.1.0"}
 
 
 if __name__ == "__main__":
