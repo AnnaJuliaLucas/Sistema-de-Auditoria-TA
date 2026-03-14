@@ -225,6 +225,9 @@ def check_evidences():
         if p and p.exists():
             folders = [str(d.relative_to(p)) for d in p.glob("*/*") if d.is_dir()][:20]
 
+        import shutil
+        total, used, free = shutil.disk_usage("/")
+        
         return {
             "audit_id": row['id'],
             "audit_name": f"{row['unidade']} - {row['area']} - {row['ciclo']}",
@@ -233,7 +236,13 @@ def check_evidences():
             "total_files_on_disk": len(list(p.glob("**/*"))) if p and p.exists() else 0,
             "sample_subdirs": folders,
             "evidence_map_size": len(json.loads(row['evidence_map'])) if row['evidence_map'] else 0,
-            "uploads_dir_content": os.listdir("/app/data/uploads") if os.path.exists("/app/data/uploads") else []
+            "uploads_dir_content": os.listdir("/app/data/uploads") if os.path.exists("/app/data/uploads") else [],
+            "disk_usage": {
+                "total_gb": round(total / (1024**3), 2),
+                "used_gb": round(used / (1024**3), 2),
+                "free_gb": round(free / (1024**3), 2),
+                "percent_used": round((used/total)*100, 2)
+            }
         }
     except Exception as e:
         return {"error": str(e)}
