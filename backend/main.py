@@ -36,7 +36,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# 1. CORS — ALWAYS AT THE TOP
+# 1. CORS — ALWAYS AT THE TOP (must be first middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -44,11 +44,14 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "https://sistema-de-auditoria-ta.vercel.app",
         "https://sistema-de-auditoria-ta-git-master-annajulialucas-projects.vercel.app",
+        "https://sistema-de-auditoria-ta-annajulialucas-projects.vercel.app",
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:\d+",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 @app.exception_handler(Exception)
