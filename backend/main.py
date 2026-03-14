@@ -10,6 +10,7 @@ import logging
 import os
 import traceback
 import shutil
+from datetime import datetime
 from pathlib import Path
 
 # Configure logging to both console and file in volume
@@ -34,23 +35,16 @@ if os.environ.get("RAILWAY_ENVIRONMENT"):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: initialize database and reclaim space."""
+    """Startup: initialize database and reclaim space if critical."""
     if os.environ.get("RAILWAY_ENVIRONMENT"):
         try:
-            # Emergency purge of uploads to allow SQLite to breathe
-            u_dir = "/app/data/uploads"
-            if os.path.exists(u_dir):
-                for entry in os.listdir(u_dir):
-                    entry_path = os.path.join(u_dir, entry)
-                    try:
-                        if os.path.isfile(entry_path): os.unlink(entry_path)
-                        elif os.path.isdir(entry_path): shutil.rmtree(entry_path)
-                    except: pass
-            
-            # Truncate log if too large
-            if os.path.exists(log_path) and os.path.getsize(log_path) > 5 * 1024 * 1024:
+            # Truncate log ONLY if it's extremely large (>15MB)
+            if os.path.exists(log_path) and os.path.getsize(log_path) > 15 * 1024 * 1024:
                 with open(log_path, "w") as f:
-                    f.write(f"--- Log Auto-Truncated for space relief ---\n")
+                    f.write(f"--- Log Auto-Truncated at {datetime.now().isoformat()} ---\n")
+            
+            # NOTE: We no longer purge /app/data/uploads here because the disk was increased to 5GB.
+            # Persistence is now safe.
         except Exception as e:
             print(f"Startup clean error: {e}")
 
