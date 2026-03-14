@@ -191,6 +191,7 @@ def force_init_db():
         log.info("Manual init_db triggered via API")
         init_db()
         return {"status": "success", "message": "Database initialization completed successfully"}
+        }
     except Exception as e:
         err = traceback.format_exc()
         log.error(f"Manual init_db FAILED: {err}")
@@ -199,3 +200,43 @@ def force_init_db():
             "message": str(e),
             "traceback": err
         }
+
+@router.get("/check-evidences")
+def check_evidences():
+    """Diagnostic for evidence mapping and extraction."""
+    from backend.db import DB_PATH, get_db
+    import sqlite3
+    import json
+    from pathlib import Path
+
+    if not os.path.exists(str(DB_PATH)):
+        return {"error": f"DB not found at {DB_PATH}"}
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute("SELECT id, unidade, area, ciclo, evidence_folder_path, evidence_map FROM auditorias ORDER BY id DESC LIMIT 1").fetchone()
+        if not row:
+            return {"status": "none", "message": "No audits found"}
+
+        ev_path = row['evidence_folder_path']
+        p = Path(ev_path) if ev_path else None
+        
+        folders = []
+        if p and p.exists():
+            folders = [str(d.relative_to(p)) for d in p.glob("*/*") if d.is_dir()][:20]
+
+        return {
+            "audit_id": row['id'],
+            "audit_name": f"{row['unidade']} - {row['area']} - {row['ciclo']}",
+            "evidence_folder_in_db": ev_path,
+            "folder_exists_on_disk": p.exists() if p else False,
+            "total_files_on_disk": len(list(p.glob("**/*"))) if p and p.exists() else 0,
+            "sample_subdirs": folders,
+            "evidence_map_size": len(json.loads(row['evidence_map'])) if row['evidence_map'] else 0,
+            "uploads_dir_content": os.listdir("/app/data/uploads") if os.path.exists("/app/data/uploads") else []
+        }
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        conn.close()
