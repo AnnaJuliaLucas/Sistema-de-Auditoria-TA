@@ -220,6 +220,7 @@ def _init_postgres():
                 ai_base_url TEXT DEFAULT '',
                 modo_analise TEXT DEFAULT 'completo',
                 observacoes TEXT DEFAULT '',
+                evidence_map TEXT DEFAULT '{}',
                 UNIQUE(unidade, area, ciclo)
             );
 
@@ -248,7 +249,8 @@ def _init_postgres():
                 ia_pontos_faltantes TEXT,
                 ia_analise_detalhada TEXT,
                 ia_status TEXT,
-                data_atualizacao TEXT
+                data_atualizacao TEXT,
+                UNIQUE(auditoria_id, pratica_num, subitem_idx)
             );
 
             CREATE TABLE IF NOT EXISTS audit_log (

@@ -25,9 +25,18 @@ EXTS_ALL = EXTS_IMG | EXTS_DOC | EXTS_VIDEO
 # Caching evidence maps
 _EVIDENCE_CACHE = {}
 
-def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False) -> dict:
-    """Get from cache or build and cache evidence map."""
+def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, aud: dict = None) -> dict:
+    """Get from cache or build and cache evidence map. Fallbacks to DB if folder missing."""
     if not ev_folder or not Path(ev_folder).is_dir():
+        # Fallback to DB if we have the audit dict
+        if aud and aud.get("evidence_map"):
+            try:
+                import json
+                db_map = json.loads(aud["evidence_map"])
+                # Convert "1.0" string keys back to (1, 0) tuples
+                return {tuple(map(int, k.split('.'))): v for k, v in db_map.items()}
+            except Exception as e:
+                print(f"Error parsing DB evidence_map: {e}")
         return {}
     
     if ev_folder in _EVIDENCE_CACHE and not refresh:
@@ -130,7 +139,7 @@ def get_all_evidences(auditoria_id: int, refresh: bool = False):
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
-    mapa = _get_or_build_evidence_map(ev_folder, refresh=refresh)
+    mapa = _get_or_build_evidence_map(ev_folder, refresh=refresh, aud=aud)
     
     # Format map for frontend (keys as strings "P.S")
     formatted = {}
@@ -156,7 +165,7 @@ def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int):
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
-    mapa = _get_or_build_evidence_map(ev_folder)
+    mapa = _get_or_build_evidence_map(ev_folder, aud=aud)
     files = mapa.get((pratica_num, subitem_idx), [])
 
     images = [f for f in files if Path(f).suffix.lower() in EXTS_IMG]

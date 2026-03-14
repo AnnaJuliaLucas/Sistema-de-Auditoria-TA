@@ -121,20 +121,42 @@ async def criar_auditoria(
             print(f"Failed to download/extract evidence from URL: {e}")
             evidence_path = evidence_url # Fallback to URL string if extraction fails
 
-    # Update audit record with actual paths
+    # Update audit record with actual paths and initial evidence map
+    evidence_map = {}
+    if evidence_path and Path(evidence_path).is_dir():
+        try:
+            from backend.routers.evidencias import _get_or_build_evidence_map
+            evidence_map = _get_or_build_evidence_map(evidence_path, refresh=True)
+            # Standardize keys for JSON (tuple -> "P.S")
+            evidence_map = {f"{p}.{s}": files for (p, s), files in evidence_map.items()}
+        except Exception as e:
+            print(f"Failed to build initial evidence map: {e}")
+
     with get_db() as conn:
         conn.execute("""
             UPDATE auditorias
-            SET assessment_file_path=?, evidence_folder_path=?
+            SET assessment_file_path=?, evidence_folder_path=?, evidence_map=?
             WHERE id=?
-        """, (assessment_path, evidence_path, audit_id))
+        """, (assessment_path, evidence_path, json.dumps(evidence_map), audit_id))
 
     # 3. Always Populate Subitems from Checklist Baseline
     try:
         from checklist_po_aut_002 import CHECKLIST
-        # The CHECKLIST is a dict with (prat_num, sub_idx) as keys
+        # Determine if we need ON CONFLICT (Postgres) or INSERT OR IGNORE (SQLite)
+        insert_sql = """
+            INSERT INTO avaliacoes
+                (auditoria_id, pratica_num, pratica_nome,
+                 subitem_idx, subitem_nome, evidencia_descricao,
+                 decisao)
+            VALUES (?,?,?,?,?,?,'pendente')
+        """
+        if USE_POSTGRES:
+            insert_sql += " ON CONFLICT (auditoria_id, pratica_num, subitem_idx) DO NOTHING"
+        else:
+            insert_sql = insert_sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
+
         with get_db() as conn:
-            # Map of practice names (could be moved to a shared constant)
+            # Map of practice names
             pratica_nomes = {
                 1: "ROTINAS DE TA (PS 0005)",
                 2: "SOBRESSALENTES (PS 0006)",
@@ -189,18 +211,14 @@ async def criar_auditoria(
                 p_nome = pratica_nomes.get(p_num, f"Prática {p_num}")
                 s_nome = subitem_nomes.get(key, f"Subitem {s_idx}")
                 
-                conn.execute("""
-                    INSERT OR IGNORE INTO avaliacoes
-                        (auditoria_id, pratica_num, pratica_nome,
-                         subitem_idx, subitem_nome, evidencia_descricao,
-                         decisao)
-                    VALUES (?,?,?,?,?,?,'pendente')
-                """, (
+                conn.execute(insert_sql, (
                     audit_id, p_num, p_nome, s_idx, s_nome, 
                     " \n".join(info.get("verificar", []))
                 ))
     except Exception as e:
         print(f"Error populating default checklist: {e}")
+        # In production, we want to know if this failed
+        if USE_POSTGRES: raise
 
     # 4. Optional: Parse assessment file to update notas SA if Excel exists
     if assessment_path and Path(assessment_path).exists():
