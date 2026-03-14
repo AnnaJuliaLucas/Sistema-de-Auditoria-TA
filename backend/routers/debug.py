@@ -460,3 +460,45 @@ def re_extract_audit(audit_id: int):
         }
     except Exception as e:
         return {"error": str(e), "traceback": traceback.format_exc()}
+@router.get("/debug-import/{audit_id}")
+def debug_import_audit(audit_id: int):
+    """Deep debug of Excel Column I parsing."""
+    try:
+        from backend.db import get_auditoria, get_db
+        import openpyxl
+        
+        aud = get_auditoria(audit_id)
+        if not aud: return {"error": "Audit not found"}
+        
+        assessment_path = aud["assessment_file_path"]
+        results = []
+        
+        wb = openpyxl.load_workbook(assessment_path, data_only=True)
+        ws = wb.active
+        
+        current_p_num = None
+        s_idx = 0
+        
+        for i, row in enumerate(ws.iter_rows(min_row=1, max_row=100, values_only=True)):
+            if not any(row): continue
+            
+            row_info = {"line": i+1, "col_A": row[0], "col_B": row[1], "col_I": row[8] if len(row) > 8 else "MISSING"}
+            
+            if row[0] and str(row[0]).strip().isdigit():
+                current_p_num = int(row[0])
+                s_idx = 0
+                row_info["type"] = "PRATICA"
+            elif current_p_num is not None and row[1]:
+                val_raw = row[8] if len(row) > 8 else None
+                from backend.routers.export import _safe_int
+                row_info["type"] = "SUBITEM"
+                row_info["p"] = current_p_num
+                row_info["s"] = s_idx
+                row_info["nota"] = _safe_int(val_raw)
+                s_idx += 1
+            
+            results.append(row_info)
+            
+        return {"audit_id": audit_id, "path": assessment_path, "parsed": results}
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
