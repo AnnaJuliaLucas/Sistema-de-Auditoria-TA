@@ -227,6 +227,21 @@ def init_db():
             sys.path.insert(0, parent)
         import database as original_db
         original_db.init_db()
+        
+        # Seed default user if empty
+        try:
+            with get_db() as conn:
+                row = conn.execute("SELECT COUNT(*) as cnt FROM users").fetchone()
+                if row and row['cnt'] == 0:
+                    from backend.auth import get_password_hash
+                    email = "admin@automateasy.com.br"
+                    hashed = get_password_hash("admin123")
+                    conn.execute("INSERT INTO users (email, password, role) VALUES (?, ?, ?)", 
+                                 (email, hashed, "admin"))
+                    log.info(f"Default user seeded: {email}")
+        except Exception as e:
+            log.warning(f"Could not seed default user: {e}")
+
     log.info("Database initialized")
 
 

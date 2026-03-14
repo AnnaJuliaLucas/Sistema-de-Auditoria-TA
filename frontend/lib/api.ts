@@ -1,5 +1,5 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-  ? "" // Na Vercel, usa caminhos relativos
+  ? "https://sistema-de-auditoria-ta-production.up.railway.app" // Novo Backend Potente no Railway
   : "http://localhost:8000"); // Localmente, usa a porta 8000
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
