@@ -435,13 +435,18 @@ def re_extract_audit(audit_id: int):
         
         if not zip_path.exists():
             zip_url = aud.get("evidence_zip_url")
-            if not zip_url:
-                return {"error": f"ZIP not found and no evidence_zip_url in DB."}
-            
-            import urllib.request
-            log.info(f"Downloading ZIP for re-extraction from {zip_url}...")
-            audit_dir.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(zip_url, zip_path)
+            if zip_url.startswith("http"):
+                import urllib.request
+                log.info(f"Downloading ZIP for re-extraction from {zip_url}...")
+                audit_dir.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(zip_url, zip_path)
+            elif os.path.exists(zip_url):
+                import shutil
+                log.info(f"Copying local ZIP for re-extraction from {zip_url}...")
+                audit_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(zip_url, zip_path)
+            else:
+                return {"error": f"Source ZIP not found at {zip_url} (it may have been cleaned up to save space)."}
             
         # 1. Re-extract
         log.info(f"Force re-extracting audit {audit_id}")
