@@ -588,14 +588,10 @@ def parse_assessment(file_path):
             if isinstance(col0,int) and col1 and 'PRÁTICA' not in str(col1):
                 pratica_atual = {'num':col0,'nome':str(col1).strip().replace('\n',' '),'subitems':[]}
                 praticas.append(pratica_atual)
-                if col2:
-                    pratica_atual['subitems'].append({
-                        'nome':str(col2).split('\n')[0].strip(),
-                        'evidencia':str(col2).strip(),
-                        'niveis':{k:str(v).strip() if v else '' for k,v in enumerate([n0,n1,n2,n3,n4])},
-                        'nota_sa':int(nota_item) if isinstance(nota_item,(int,float)) else None
-                    })
-            elif col0 is None and col2 and pratica_atual:
+            
+            if col2 and pratica_atual:
+                if str(col2).strip().upper() == "EVIDÊNCIA": # Ignorar cabeçalho se houver
+                    continue
                 pratica_atual['subitems'].append({
                     'nome':str(col2).split('\n')[0].strip(),
                     'evidencia':str(col2).strip(),

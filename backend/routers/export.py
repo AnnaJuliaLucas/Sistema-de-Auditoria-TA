@@ -156,21 +156,24 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                 s_idx_internal = 0
                 for row_cells in ws.iter_rows(min_row=2, values_only=True):
                     # Se não tiver absolutamente nada em nenhuma das 9 primeiras colunas, pula.
-                    # As vezes openpyxl retorna strings vazias, então checamos se há algo não-nulo e não-vazio
                     has_content = any(c is not None and str(c).strip() != "" for c in row_cells[:15])
                     if not has_content: continue
 
+                    # Detecta Prática
                     if row_cells[0] and str(row_cells[0]).strip().isdigit():
                         current_p_num = int(row_cells[0])
                         s_idx_internal = 0
-                    elif current_p_num is not None:
-                        # Precisamos pegar a coluna I (índice 8). 
+                    
+                    # Processa Subitem (mesmo se for na mesma linha da Prática)
+                    if current_p_num is not None and len(row_cells) > 1 and row_cells[1]:
+                        # Coluna I (índice 8). 
                         if len(row_cells) > 8:
                             val_raw = row_cells[8]
                             is_header_row = False
+                            # Ignora se for a linha de cabeçalho "NOTA ITEM"
                             if val_raw is not None and str(val_raw).strip().upper() == "NOTA ITEM":
                                 is_header_row = True
-                            if len(row_cells) > 1 and row_cells[1] is not None and str(row_cells[1]).strip().upper() == "PRÁTICA":
+                            if str(row_cells[1]).strip().upper() == "PRÁTICA":
                                 is_header_row = True
                                 
                             if not is_header_row:
@@ -257,10 +260,17 @@ def importar_assessment(auditoria_id: int, assessment_path: str = ""):
             s_idx = 0
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if not any(row): continue
+                # Detecta Prática
                 if row[0] and str(row[0]).strip().isdigit():
                     current_p_num = int(row[0])
                     s_idx = 0
-                elif current_p_num and row[1]:
+                
+                # Processa Subitem
+                if current_p_num and row[1]:
+                    # Ignorar linha de cabeçalho
+                    if str(row[1]).strip().upper() == "PRÁTICA":
+                        continue
+                        
                     # Coluna I (índice 8)
                     nota_sa = _safe_int(row[8])
                     conn.execute("""

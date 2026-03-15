@@ -488,10 +488,15 @@ def debug_import_audit(audit_id: int):
                 current_p_num = int(row[0])
                 s_idx = 0
                 row_info["type"] = "PRATICA"
-            elif current_p_num is not None and row[1]:
+            
+            if current_p_num is not None and row[1]:
+                # Skip if it's the header "PRÁTICA" in column B
+                if str(row[1]).strip().upper() == "PRÁTICA":
+                    continue
+
                 val_raw = row[8] if len(row) > 8 else None
                 from backend.routers.export import _safe_int
-                row_info["type"] = "SUBITEM"
+                row_info["type"] = "SUBITEM" if "type" not in row_info else "PRATICA+SUBITEM"
                 row_info["p"] = current_p_num
                 row_info["s"] = s_idx
                 row_info["nota"] = _safe_int(val_raw)
