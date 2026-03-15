@@ -57,10 +57,6 @@ export default function AuditarPage() {
     }, [loadData]);
 
     async function handleAnalyzePractice(pratica: Pratica) {
-        if (!auditoria?.openai_api_key) {
-            alert("Configure a chave API nas configurações para usar a IA.");
-            return;
-        }
         
         const pendentes = pratica.subitens.filter(s => s.decisao === 'pendente');
         if (pendentes.length === 0) {
@@ -95,10 +91,6 @@ export default function AuditarPage() {
     }
 
     async function handleRunGlobalAgent() {
-        if (!auditoria?.openai_api_key) {
-            alert("Configure a chave API nas configurações para usar a IA.");
-            return;
-        }
 
         const pendentes = praticas.flatMap(p => p.subitens).filter(s => s.decisao === 'pendente');
         if (pendentes.length === 0) {
@@ -204,7 +196,7 @@ export default function AuditarPage() {
                         )}
                         
                         <div className="flex gap-2">
-                            {auditoria.openai_api_key && (
+                            {(
                                 <button
                                     onClick={handleRunGlobalAgent}
                                     disabled={batchAnalyzing !== null}
@@ -321,7 +313,7 @@ export default function AuditarPage() {
                                         <span className="text-sm text-slate-400">
                                             {pratica.avaliados}/{pratica.total}
                                         </span>
-                                        {pratica.pendentes > 0 && auditoria?.openai_api_key && (
+                                        {pratica.pendentes > 0 && (
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleAnalyzePractice(pratica); }}
                                                 disabled={batchAnalyzing !== null}

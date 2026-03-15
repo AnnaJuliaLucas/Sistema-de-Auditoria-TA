@@ -34,8 +34,11 @@ def analisar_subitem(avaliacao_id: int, body: IAAnalyzeRequest):
             print(f"ERROR: Auditoria {av['auditoria_id']} não encontrada")
             raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
-        # 2. Determinar API Key
-        # API Key Fallback Order: Body -> Audit -> Global System Config -> Env Var
+        # 2. Determinar Provider (antes da key, pois Ollama não precisa de API Key)
+        provider = body.provider or aud.get("ai_provider") or get_system_config("ai_provider", "openai")
+        base_url = body.base_url or aud.get("ai_base_url") or get_system_config("ai_base_url", "")
+        
+        # 3. Determinar API Key (não obrigatória para Ollama)
         api_key = body.api_key or aud.get("openai_api_key", "")
         if not api_key:
             config_key = get_system_config("openai_api_key")
@@ -44,7 +47,7 @@ def analisar_subitem(avaliacao_id: int, body: IAAnalyzeRequest):
             else:
                 api_key = os.environ.get("OPENAI_API_KEY", "")
 
-        if not api_key:
+        if not api_key and provider != "ollama":
             print("ERROR: API Key não encontrada em nenhum lugar.")
             audit_id = av["auditoria_id"]
             raise HTTPException(
@@ -66,9 +69,6 @@ def analisar_subitem(avaliacao_id: int, body: IAAnalyzeRequest):
         print(f"DEBUG: Chave subitem: {key}, Arquivos encontrados: {len(evidence_files)}")
         
         # 4. Configurar Analyzer
-        provider = body.provider or aud.get("ai_provider") or get_system_config("ai_provider", "openai")
-        base_url = body.base_url or aud.get("ai_base_url") or get_system_config("ai_base_url", "")
-        
         # Modo de análise
         economico = body.economico
         if body.modo_analise:
