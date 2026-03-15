@@ -13,8 +13,18 @@ import urllib.request
 import zipfile
 import shutil
 import logging
+import unicodedata
 
 log = logging.getLogger("auditoria_evidencias")
+
+def _normalize_name(name: str) -> str:
+    """Normalize string for soft comparison: lowercase and no accents."""
+    try:
+        # Standardize characters and remove accents
+        nfkd_form = unicodedata.normalize('NFKD', name)
+        return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
+    except:
+        return name.lower().strip()
 
 _parent = str(Path(__file__).resolve().parent.parent.parent)
 if _parent not in sys.path:
@@ -83,15 +93,12 @@ def extract_zip_robustly(zip_path: Path, extract_to: Path):
 
 def resolve_and_ensure_path(requested_path: Path, audit_id: int = None) -> Path:
     """
-    Checks if a requested path exists. If not, attempts to remap it to the 
-    local 'uploads' directory if it belongs to an audit, and triggers 
-    lazy restoration (ZIP download/extract) if needed.
+    Checks if a requested path exists. If not, attempts to remap it and 
+    triggers lazy restoration or recursive fuzzy matching to resolve encoding issues.
     """
     if requested_path.exists():
         return requested_path
         
-    log.info(f"File missing: {requested_path}. Attempting to resolve...")
-    
     # 1. Detect Audit ID if not provided
     if not audit_id:
         parts = requested_path.parts
@@ -99,72 +106,82 @@ def resolve_and_ensure_path(requested_path: Path, audit_id: int = None) -> Path:
             if "uploads" in parts:
                 idx = parts.index("uploads")
                 audit_id = int(parts[idx+1])
-            else:
-                # Identification by prefix matching
-                from backend.db import listar_auditorias
-                all_audits = listar_auditorias()
-                path_str_norm = str(requested_path.absolute()).lower().replace("\\", "/")
-                for a in all_audits:
-                    fp = a.get("evidence_folder_path")
-                    if fp:
-                        fp_norm = str(Path(fp).absolute()).lower().replace("\\", "/")
-                        if path_str_norm.startswith(fp_norm):
-                            audit_id = a["id"]
-                            break
         except: pass
 
     if not audit_id:
         return requested_path 
         
-    # 2. Get Audit Data
+    # 2. Get Audit Data and determine server base
     aud = get_auditoria(audit_id)
     if not aud:
         return requested_path
-        
-    # 3. Handle Remapping (Local Path -> Server Uploads)
-    server_path = requested_path
-    folder_db = aud.get("evidence_folder_path")
     
+    # Map to server internal uploads folder
+    folder_db = aud.get("evidence_folder_path")
+    server_base = BASE_DIR / "uploads" / str(audit_id) / "evidences"
+    
+    # Determine the relative path from the designated evidence root
+    rel_path_str = ""
     if folder_db:
-        path_str = str(requested_path.absolute()).replace("\\", "/")
-        folder_db_norm = str(Path(folder_db).absolute()).replace("\\", "/")
-        if path_str.lower().startswith(folder_db_norm.lower()):
-            rel_path = path_str[len(folder_db_norm):].lstrip("/")
-            # Garanto que rel_path use separadores do SO atual
-            rel_path_obj = Path(rel_path.replace("\\", "/"))
-            server_path = BASE_DIR / "uploads" / str(audit_id) / "evidences" / rel_path_obj
+        path_str_norm = str(requested_path.absolute()).replace("\\", "/").lower()
+        folder_db_norm = str(Path(folder_db).absolute()).replace("\\", "/").lower()
+        if path_str_norm.startswith(folder_db_norm):
+            rel_path_str = str(requested_path.absolute()).replace("\\", "/")[len(folder_db_norm):].lstrip("/")
+    
+    if not rel_path_str:
+        # If we can't determine rel_path from folder_db, maybe it's already an 'uploads' path
+        parts = list(requested_path.parts)
+        if "evidences" in parts:
+            idx = parts.index("evidences")
+            rel_path_str = "/".join(parts[idx+1:])
 
-    # 4. Lazy Restoration if Server Path missing
-    if not server_path.exists() and aud.get("evidence_zip_url"):
+    # 3. Check for Lazy Restoration if the entire evidences folder is missing
+    if not server_base.exists() and aud.get("evidence_zip_url"):
         zip_url = aud["evidence_zip_url"]
-        audit_dir = BASE_DIR / "uploads" / str(audit_id)
-        zip_path = audit_dir / f"evidences_{audit_id}.zip"
-        extract_dir = audit_dir / "evidences"
-        
+        zip_path = (BASE_DIR / "uploads" / str(audit_id)) / f"evidences_{audit_id}.zip"
         try:
             log.info(f"Restoring audit {audit_id} from {zip_url}...")
-            audit_dir.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(zip_url, zip_path)
-            extract_zip_robustly(zip_path, extract_dir)
-            log.info(f"Restoration complete.")
+            zip_path.parent.mkdir(parents=True, exist_ok=True)
+            if zip_url.startswith("http"):
+                urllib.request.urlretrieve(zip_url, zip_path)
+            elif os.path.exists(zip_url):
+                shutil.copy2(zip_url, zip_path)
+            extract_zip_robustly(zip_path, server_base)
         except Exception as e:
             log.error(f"Restoration failed for audit {audit_id}: {e}")
+
+    # 4. Recursive Fuzzy Matching (Component by Component)
+    # Start from a known existing root
+    current_path = server_base
+    if not current_path.exists():
+        return requested_path # Can't even find the base evidence folder
+        
+    path_components = [p for p in rel_path_str.replace("\\", "/").split("/") if p]
+    
+    for comp in path_components:
+        next_step = current_path / comp
+        if next_step.exists():
+            current_path = next_step
+        else:
+            # Fuzzy skip: look for a component that matches after normalization
+            found = False
+            norm_target = _normalize_name(comp)
+            try:
+                for item in current_path.iterdir():
+                    if _normalize_name(item.name) == norm_target:
+                        log.info(f"Fuzzy Match: '{item.name}' instead of '{comp}'")
+                        current_path = item
+                        found = True
+                        break
+            except Exception as e:
+                log.debug(f"Iterdir failed for {current_path}: {e}")
             
-    # 5. Fuzzy matching if still not found (handles case-sensitivity or normalization diffs)
-    if not server_path.exists():
-        try:
-            parent = server_path.parent
-            if parent.exists():
-                # Case-insensitive search in the parent directory
-                target_name = server_path.name.lower()
-                for child in parent.iterdir():
-                    if child.is_file() and child.name.lower() == target_name:
-                        log.info(f"Fuzzy Match found: {child.name} for {server_path.name}")
-                        return child
-        except Exception as e:
-            log.debug(f"Fuzzy matching failed: {e}")
-            
-    return server_path
+            if not found:
+                # If we can't find even a fuzzy match, we must stop and return this broken path
+                return current_path / comp
+                
+    return current_path
+
 
 def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, audit: dict = None) -> dict:
     """Get from cache or build and cache evidence map. Fallbacks to DB if folder missing."""
