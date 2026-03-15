@@ -165,15 +165,16 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                         s_idx_internal = 0
                     
                     # Processa Subitem (mesmo se for na mesma linha da Prática)
-                    if current_p_num is not None and len(row_cells) > 1 and row_cells[1]:
+                    # Usamos a coluna C (índice 2) que contém a descrição do subitem/evidência
+                    if current_p_num is not None and len(row_cells) > 2 and row_cells[2]:
                         # Coluna I (índice 8). 
                         if len(row_cells) > 8:
                             val_raw = row_cells[8]
                             is_header_row = False
-                            # Ignora se for a linha de cabeçalho "NOTA ITEM"
+                            # Ignora se for a linha de cabeçalho "NOTA ITEM" ou similar
                             if val_raw is not None and str(val_raw).strip().upper() == "NOTA ITEM":
                                 is_header_row = True
-                            if str(row_cells[1]).strip().upper() == "PRÁTICA":
+                            if str(row_cells[1]).strip().upper() == "PRÁTICA" or str(row_cells[2]).strip().upper() == "EVIDÊNCIA":
                                 is_header_row = True
                                 
                             if not is_header_row:
@@ -265,10 +266,10 @@ def importar_assessment(auditoria_id: int, assessment_path: str = ""):
                     current_p_num = int(row[0])
                     s_idx = 0
                 
-                # Processa Subitem
-                if current_p_num and row[1]:
+                # Processa Subitem - Usamos a coluna C (índice 2)
+                if current_p_num and row[2]:
                     # Ignorar linha de cabeçalho
-                    if str(row[1]).strip().upper() == "PRÁTICA":
+                    if str(row[1]).strip().upper() == "PRÁTICA" or str(row[2]).strip().upper() == "EVIDÊNCIA":
                         continue
                         
                     # Coluna I (índice 8)
@@ -310,7 +311,7 @@ def exportar_excel(auditoria_id: int):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
     wb.save(tmp.name)
     tmp.close()
-    return FileResponse(tmp.name, filename=f"Auditoria_{audit_id}.xlsx")
+    return FileResponse(tmp.name, filename=f"Auditoria_{auditoria_id}.xlsx")
 
 @router.get("/unidades-areas")
 def get_unidades_areas():

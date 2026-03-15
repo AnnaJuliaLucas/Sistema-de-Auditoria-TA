@@ -489,9 +489,10 @@ def debug_import_audit(audit_id: int):
                 s_idx = 0
                 row_info["type"] = "PRATICA"
             
-            if current_p_num is not None and row[1]:
-                # Skip if it's the header "PRÁTICA" in column B
-                if str(row[1]).strip().upper() == "PRÁTICA":
+            # Usar coluna C (index 2) para detectar subitem
+            if current_p_num is not None and row[2]:
+                # Skip if it's the header "PRÁTICA" in column B or "EVIDÊNCIA" in column C
+                if str(row[1]).strip().upper() == "PRÁTICA" or str(row[2]).strip().upper() == "EVIDÊNCIA":
                     continue
 
                 val_raw = row[8] if len(row) > 8 else None
