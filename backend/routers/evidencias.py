@@ -428,10 +428,16 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
             '.doc': 'application/msword',
         }
 
+        # For images, PDFs, and videos: serve inline so browsers can render in <img>/<video>/<object> tags
+        # For documents (xlsx, docx): serve as attachment (download)
+        inline_types = EXTS_IMG | EXTS_VIDEO | {'.pdf'}
+        disposition = "inline" if ext in inline_types else "attachment"
+
         return FileResponse(
             str(file_path),
             media_type=media_types.get(ext, 'application/octet-stream'),
             filename=file_path.name,
+            content_disposition_type=disposition,
             headers={
                 "Access-Control-Allow-Origin": "*",
                 "Cache-Control": "public, max-age=3600",
