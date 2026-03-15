@@ -57,7 +57,7 @@ export default function AuditarPage() {
     }, [loadData]);
 
     async function handleAnalyzePractice(pratica: Pratica) {
-        if (!auditoria?.openai_api_key && auditoria?.ai_provider !== 'ollama') {
+        if (!auditoria?.openai_api_key) {
             alert("Configure a chave API nas configurações para usar a IA.");
             return;
         }
@@ -78,7 +78,7 @@ export default function AuditarPage() {
                 try {
                     await api.analyzeSubitem(
                         sub.id, 
-                        auditoria.openai_api_key || "ollama", 
+                        auditoria.openai_api_key || "", 
                         auditoria.modo_analise === 'economico',
                         auditoria.modo_analise,
                         auditoria.ai_provider,
@@ -95,7 +95,7 @@ export default function AuditarPage() {
     }
 
     async function handleRunGlobalAgent() {
-        if (!auditoria?.openai_api_key && auditoria?.ai_provider !== 'ollama') {
+        if (!auditoria?.openai_api_key) {
             alert("Configure a chave API nas configurações para usar a IA.");
             return;
         }
@@ -114,7 +114,7 @@ export default function AuditarPage() {
                 try {
                     await api.analyzeSubitem(
                         sub.id, 
-                        auditoria.openai_api_key || "ollama", 
+                        auditoria.openai_api_key || "", 
                         auditoria.modo_analise === 'economico',
                         auditoria.modo_analise,
                         auditoria.ai_provider,
@@ -204,7 +204,7 @@ export default function AuditarPage() {
                         )}
                         
                         <div className="flex gap-2">
-                            {(auditoria.openai_api_key || auditoria.ai_provider === 'ollama') && (
+                            {auditoria.openai_api_key && (
                                 <button
                                     onClick={handleRunGlobalAgent}
                                     disabled={batchAnalyzing !== null}
@@ -321,7 +321,7 @@ export default function AuditarPage() {
                                         <span className="text-sm text-slate-400">
                                             {pratica.avaliados}/{pratica.total}
                                         </span>
-                                        {pratica.pendentes > 0 && (auditoria?.openai_api_key || auditoria?.ai_provider === 'ollama') && (
+                                        {pratica.pendentes > 0 && auditoria?.openai_api_key && (
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleAnalyzePractice(pratica); }}
                                                 disabled={batchAnalyzing !== null}
@@ -345,7 +345,7 @@ export default function AuditarPage() {
                                             key={sub.id}
                                             avaliacao={sub}
                                             onSaved={loadData}
-                                            apiKey={auditoria?.openai_api_key || "ollama"}
+                                            apiKey={auditoria?.openai_api_key || ""}
                                             initialEvidence={evidenceMap[`${sub.pratica_num}.${sub.subitem_idx}`]}
                                             initialCriteria={criteriaMap[`${sub.pratica_num}.${sub.subitem_idx}`]}
                                             modoAnalise={auditoria?.modo_analise}

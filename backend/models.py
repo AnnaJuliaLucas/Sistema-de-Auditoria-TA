@@ -84,7 +84,7 @@ class NotaPreview(BaseModel):
 # ─── IA ───────────────────────────────────────────────────────────────────────
 
 class IAAnalyzeRequest(BaseModel):
-    api_key: str
+    api_key: str = ""
     economico: bool = False
     modo_analise: Optional[str] = None
     provider: str = "openai"
@@ -97,7 +97,7 @@ class ChatMessage(BaseModel):
 
 
 class IAChatRequest(BaseModel):
-    api_key: str
+    api_key: str = ""
     message: str
     economico: bool = False
     provider: str = "openai"
