@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, Auditoria } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { api, Auditoria, API_BASE } from "@/lib/api";
 
 interface GlobalConfig {
     openai_api_key: string;

@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Avaliacao, DECISAO_CONFIG, ESCALA, calcularNotaFinal, api } from "@/lib/api";
+import { Avaliacao, DECISAO_CONFIG, ESCALA, calcularNotaFinal, api, API_BASE } from "@/lib/api";
 import NotaBadge from "./NotaBadge";
 import ChatPanel from "./ChatPanel";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface SubitemCardProps {
     avaliacao: Avaliacao;
