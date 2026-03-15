@@ -585,3 +585,31 @@ def storage_cleanup():
             
     log.info(f"Cleanup finished: {results}")
     return results
+@router.get("/inspect")
+def inspect_path(path: str = "/app/data"):
+    """Generic directory listing for troubleshooting."""
+    from pathlib import Path
+    try:
+        p = Path(path)
+        if not p.exists():
+            return {"error": f"Path not found: {path}"}
+        
+        details = {
+            "path": str(p),
+            "exists": p.exists(),
+            "is_dir": p.is_dir(),
+            "is_file": p.is_file(),
+            "items": []
+        }
+        
+        if p.is_dir():
+            for item in p.iterdir():
+                details["items"].append({
+                    "name": item.name,
+                    "is_dir": item.is_dir(),
+                    "size": item.stat().st_size if item.is_file() else 0
+                })
+        
+        return details
+    except Exception as e:
+        return {"error": str(e)}
