@@ -266,12 +266,19 @@ def init_db():
         except Exception as e:
             log.warning(f"Could not seed test user: {e}")
 
-        # --- REPAIR MISSING COLUMNS (v15) ---
+        # --- REPAIR MISSING COLUMNS (v15+) ---
         try:
             with _sqlite_connect() as conn:
+                # auditorias table migrations
                 for col_name, col_type in [("evidence_map", "TEXT DEFAULT '{}'"), ("evidence_zip_url", "TEXT DEFAULT ''")]:
                     try:
                         conn.execute(f"ALTER TABLE auditorias ADD COLUMN {col_name} {col_type}")
+                    except sqlite3.OperationalError:
+                        pass # already exists
+                # aprendizados table migrations
+                for col_name, col_type in [("data_criacao", "TEXT DEFAULT ''")]:
+                    try:
+                        conn.execute(f"ALTER TABLE aprendizados ADD COLUMN {col_name} {col_type}")
                     except sqlite3.OperationalError:
                         pass # already exists
                 conn.commit()
