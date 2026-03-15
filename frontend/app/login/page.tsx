@@ -80,7 +80,7 @@ export default function LoginPage() {
             </div>
             <h1 className="text-3xl font-black text-white tracking-tight uppercase">Audit System</h1>
             <p className="text-slate-400 mt-2 font-semibold tracking-wide text-sm">
-              {isRegister ? "CONFIGURAR SENHA MESTRE" : "PORTAL DE ACESSO RESTRITO"}
+              {isRegister ? "CONFIGURAR / REDEFINIR SENHA" : "PORTAL DE ACESSO RESTRITO"}
             </p>
           </div>
 
@@ -173,7 +173,7 @@ export default function LoginPage() {
               className="text-xs font-bold text-slate-500 hover:text-blue-400 transition-colors uppercase tracking-widest flex items-center justify-center gap-4 w-full"
             >
               <div className="h-[1px] flex-1 bg-slate-800" />
-              {isRegister ? "Voltar ao Login" : "Configurar Primeiro Acesso"}
+              {isRegister ? "Voltar ao Login" : "Primeiro Acesso / Redefinir Senha"}
               <div className="h-[1px] flex-1 bg-slate-800" />
             </button>
           </div>

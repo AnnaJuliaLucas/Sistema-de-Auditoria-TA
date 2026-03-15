@@ -251,26 +251,20 @@ def init_db():
         import database as original_db
         original_db.init_db()
         
-        # Seed default users (Stronger seed - ensures admin exists)
+        # Seed test user only (never overwrites existing passwords)
         try:
             from backend.auth import get_password_hash
-            hashed = get_password_hash("admin123")
+            hashed = get_password_hash("Audit@2026!")
             with get_db() as conn:
-                # Sempre garante o admin com admin123 para evitar lockouts
-                conn.execute("""
-                    INSERT INTO users (email, password, role) 
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(email) DO UPDATE SET password=EXCLUDED.password
-                """, ("admin@automateasy.com.br", hashed, "admin"))
-                
-                # Garante que outros perfis conhecidos existam
-                for usr in ["anna@automateasy.com.br", "duda@automateasy.com.br"]:
-                    conn.execute("INSERT OR IGNORE INTO users (email, password, role) VALUES (?, ?, ?)", 
-                                 (usr, hashed, "auditor"))
+                # INSERT OR IGNORE — if user already exists, password is preserved
+                conn.execute(
+                    "INSERT OR IGNORE INTO users (email, password, role) VALUES (?, ?, ?)",
+                    ("teste@automateasy.com.br", hashed, "admin")
+                )
                 conn.commit()
-                log.info("Default users seeded/verified")
+                log.info("Test user seeded/verified (existing passwords preserved)")
         except Exception as e:
-            log.warning(f"Could not seed default users: {e}")
+            log.warning(f"Could not seed test user: {e}")
 
         # --- REPAIR MISSING COLUMNS (v15) ---
         try:

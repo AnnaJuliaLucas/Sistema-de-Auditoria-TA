@@ -5,9 +5,12 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Any
 from backend.auth import create_access_token, verify_password, get_password_hash, Token, get_current_user
-from backend.db import get_user, create_user
+from backend.db import get_user, create_user, get_db
 from pydantic import BaseModel
 import re
+import logging
+
+log = logging.getLogger("auditoria_auth")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -42,15 +45,19 @@ async def register(body: RegisterRequest):
     validate_password(body.password)
     
     existing = get_user(email)
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="Usuário já cadastrado"
-        )
-    
     hashed_pass = get_password_hash(body.password)
+    
+    if existing:
+        # Update password for existing user (acts as password reset)
+        with get_db() as conn:
+            conn.execute("UPDATE users SET password=? WHERE email=?", (hashed_pass, email))
+            conn.commit()
+        log.info(f"Password updated for {email}")
+        return {"ok": True, "message": "Senha atualizada com sucesso! Agora você pode entrar."}
+    
     create_user(email, hashed_pass)
-    return {"ok": True, "message": "Usuário criado com sucesso"}
+    log.info(f"New user registered: {email}")
+    return {"ok": True, "message": "Usuário criado com sucesso! Agora você pode entrar."}
 
 
 @router.post("/login", response_model=Token)
@@ -59,25 +66,18 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     
     user = get_user(email)
     
-    # Fallback to default if no users exist at all (bootstrap)
     if not user:
         if not email.endswith("@automateasy.com.br"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Acesso restrito ao domínio @automateasy.com.br"
             )
-        
-        # If it's the domain but user not found, 
-        # and it's the FIRST user ever, we could allow default pass
-        # But for now, let's just tell them to register
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuário não encontrado. Por favor, realize o primeiro acesso."
+            detail="Usuário não encontrado. Por favor, configure seu primeiro acesso."
         )
 
-    print(f"DEBUG LOGIN: Email={email}, PassLen={len(form_data.password)}")
     if not verify_password(form_data.password, user["password"]):
-        print(f"DEBUG LOGIN: Verify failed for {email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Senha incorreta",
@@ -91,3 +91,20 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @router.get("/me")
 async def get_me(current_user: str = Depends(get_current_user)):
     return {"email": current_user}
+
+
+@router.post("/cleanup-users")
+async def cleanup_users():
+    """Remove all old hardcoded users, keep only teste@automateasy.com.br."""
+    try:
+        with get_db() as conn:
+            for old_email in ["admin@automateasy.com.br", "anna@automateasy.com.br", "duda@automateasy.com.br"]:
+                conn.execute("DELETE FROM users WHERE email=?", (old_email,))
+            conn.commit()
+            
+            rows = conn.execute("SELECT email, role FROM users").fetchall()
+            users = [{"email": r["email"], "role": r["role"]} for r in rows]
+        
+        return {"ok": True, "message": "Usuários antigos removidos", "remaining_users": users}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
