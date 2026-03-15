@@ -720,8 +720,8 @@ def estatisticas_auditoria(auditoria_id: int) -> dict:
                 COUNT(*)                                                AS total,
                 SUM(CASE WHEN decisao != 'pendente' AND decisao IS NOT NULL THEN 1 ELSE 0 END) AS avaliados,
                 SUM(CASE WHEN ia_status = 'ok' THEN 1 ELSE 0 END)      AS ia_ok,
-                AVG(CASE WHEN nota_final IS NOT NULL THEN CAST(nota_final AS FLOAT) END) AS media_final,
-                AVG(CAST(nota_self_assessment AS FLOAT))                 AS media_sa
+                AVG(CASE WHEN nota_final IS NOT NULL AND nota_final != '' THEN CAST(nota_final AS FLOAT) END) AS media_final,
+                AVG(CASE WHEN nota_self_assessment IS NOT NULL AND nota_self_assessment != '' THEN CAST(nota_self_assessment AS FLOAT) END) AS media_sa
             FROM avaliacoes WHERE auditoria_id=?
         """, (auditoria_id,)).fetchone()
         return dict(row) if row else {}

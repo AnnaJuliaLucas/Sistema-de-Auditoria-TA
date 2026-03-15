@@ -269,7 +269,7 @@ def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int):
         return {}
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
-    mapa = _get_or_build_evidence_map(ev_folder, audit=aud)
+    mapa = _get_or_build_evidence_map(ev_folder, aud=aud)
     files = mapa.get((pratica_num, subitem_idx), [])
 
     images = [f for f in files if Path(f).suffix.lower() in EXTS_IMG]

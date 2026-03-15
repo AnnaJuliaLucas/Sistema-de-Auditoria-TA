@@ -59,9 +59,9 @@ async def lifespan(app: FastAPI):
     log.info("🛑 Backend encerrado")
 
 app = FastAPI(
-    title="Sistema de Auditoria TA",
+    title="Sistema de Auditoria TA - Backend API",
     description="API para o Sistema de Auditoria de Automação Industrial",
-    version="2.1.3",
+    version="2.1.5",
     lifespan=lifespan,
 )
 

@@ -167,8 +167,13 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
                         # Precisamos pegar a coluna I (índice 8). 
                         if len(row_cells) > 8:
                             val_raw = row_cells[8]
-                            # Ignorar linhas de cabeçalho onde a Col I diz "NOTA ITEM"
-                            if val_raw is not None and str(val_raw).strip().upper() != "NOTA ITEM" and str(row_cells[1]).strip().upper() != "PRÁTICA":
+                            is_header_row = False
+                            if val_raw is not None and str(val_raw).strip().upper() == "NOTA ITEM":
+                                is_header_row = True
+                            if len(row_cells) > 1 and row_cells[1] is not None and str(row_cells[1]).strip().upper() == "PRÁTICA":
+                                is_header_row = True
+                                
+                            if not is_header_row:
                                 nota_sa = _safe_int(val_raw)
                                 log.info(f"Audit {audit_id}: P{current_p_num} S{s_idx_internal} -> Raw Col I: '{val_raw}' -> Nota SA: {nota_sa}")
                                 conn.execute("""
