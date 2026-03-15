@@ -364,11 +364,12 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
     try:
         decoded_path = urllib.parse.unquote(path)
         file_path = Path(decoded_path)
-        log.info(f"Serve request: audit={audit_id} path='{path}' -> decoded='{decoded_path}'")
         
         # 1. Extract audit_id and check visibility
         parts = file_path.parts
         audit_id = None
+        log.info(f"Serve request: audit={audit_id} path='{path}' -> decoded='{decoded_path}'")
+        
         # Identification Logic (Reuse the logic to get audit_id for security check)
         try:
             if "uploads" in parts:

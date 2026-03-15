@@ -377,12 +377,13 @@ print(file)
 # ──────────────────────────────────────────────────────────────────────────────
 # PÁGINA
 # ──────────────────────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Auditoria TA · IA",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+if __name__ == "__main__":
+    st.set_page_config(
+        page_title="Auditoria TA · IA",
+        page_icon="🤖",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CONSTANTES
@@ -408,7 +409,8 @@ DB_PATH = db_module.DB_PATH
 # ──────────────────────────────────────────────────────────────────────────────
 # CSS CUSTOMIZADO
 # ──────────────────────────────────────────────────────────────────────────────
-st.markdown("""
+if __name__ == "__main__":
+    st.markdown("""
 <style>
 /* Ocultar botão Deploy do Streamlit */
 [data-testid="stDeployButton"] { display: none !important; }
@@ -581,26 +583,46 @@ def parse_assessment(file_path):
         ws = wb[sheet_name]
         praticas = []; pratica_atual = None
         for row in ws.iter_rows(values_only=True):
-            if row[0]=='N°' or row[1]=='PRÁTICA' or all(v is None for v in row): continue
-            col0,col1,col2 = row[0],row[1],row[2]
-            n0,n1,n2,n3,n4 = row[3],row[4],row[5],row[6],row[7]
+            if not row or (len(row) > 1 and (row[0]=='N°' or row[1]=='PRÁTICA')) or all(v is None for v in row):
+                continue
+            
+            col0, col1, col2 = row[0], row[1], row[2]
+            # Levels are columns 3, 4, 5, 6, 7 (0-indexed)
+            n0, n1, n2, n3, n4 = row[3], row[4], row[5], row[6], row[7]
             nota_item = row[8]
-            if isinstance(col0,int) and col1 and 'PRÁTICA' not in str(col1):
-                pratica_atual = {'num':col0,'nome':str(col1).strip().replace('\n',' '),'subitems':[]}
+            
+            # Check for new Practice - robust check for int, float (1.0) or numeric string
+            is_new_practice = False
+            p_num = None
+            if isinstance(col0, (int, float)):
+                is_new_practice = True
+                p_num = int(col0)
+            elif isinstance(col0, str) and col0.strip().isdigit():
+                is_new_practice = True
+                p_num = int(col0)
+            
+            if is_new_practice and col1 and 'PRÁTICA' not in str(col1):
+                pratica_atual = {'num': p_num, 'nome': str(col1).strip().replace('\n', ' '), 'subitems': []}
                 praticas.append(pratica_atual)
             
             if col2 and pratica_atual:
-                if str(col2).strip().upper() == "EVIDÊNCIA": # Ignorar cabeçalho se houver
+                col2_str = str(col2).strip()
+                if col2_str.upper() == "EVIDÊNCIA": # Ignorar cabeçalho se houver
                     continue
                 pratica_atual['subitems'].append({
-                    'nome':str(col2).split('\n')[0].strip(),
-                    'evidencia':str(col2).strip(),
-                    'niveis':{k:str(v).strip() if v else '' for k,v in enumerate([n0,n1,n2,n3,n4])},
-                    'nota_sa':int(nota_item) if isinstance(nota_item,(int,float)) else None
+                    'nome': col2_str.split('\n')[0].strip(),
+                    'evidencia': col2_str,
+                    'niveis': {k: str(v).strip() if v else '' for k, v in enumerate([n0, n1, n2, n3, n4])},
+                    'nota_sa': int(nota_item) if isinstance(nota_item, (int, float)) else None
                 })
         return praticas
     except Exception as e:
-        st.error(f"Erro ao ler assessment: {e}"); return []
+        msg = f"Erro ao ler assessment: {e}"
+        try:
+            st.error(msg)
+        except Exception:
+            print(msg)
+        return []
 
 # ──────────────────────────────────────────────────────────────────────────────
 # UTILITÁRIOS
