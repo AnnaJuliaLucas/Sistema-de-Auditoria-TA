@@ -347,7 +347,7 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
     try:
         decoded_path = urllib.parse.unquote(path)
         file_path = Path(decoded_path)
-        log.info(f"Serve request: path='{path}' -> decoded='{decoded_path}' -> exists={file_path.exists()}")
+        log.info(f"Serve request: audit={audit_id} path='{path}' -> decoded='{decoded_path}'")
         
         # 1. Extract audit_id and check visibility
         parts = file_path.parts
@@ -381,7 +381,13 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
         file_path = resolve_and_ensure_path(file_path, audit_id)
 
         if not file_path.exists():
-            log.warning(f"File not found on disk: {file_path}")
+            log.warning(f"File not found on disk: {file_path} (Requested: {path})")
+            # Log siblings to help identify encoding mismatches
+            if file_path.parent.exists():
+                try:
+                    siblings = [f.name for f in file_path.parent.iterdir()][:10]
+                    log.info(f"Siblings of missing file: {siblings}")
+                except: pass
             raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {decoded_path}")
 
         if not file_path.is_file():
@@ -432,7 +438,16 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
     - DOCX/DOC: extracted text paragraphs
     """
     decoded_path = urllib.parse.unquote(path)
+    # Check if still looks URL-encoded (has % followed by hex)
+    if "%" in decoded_path:
+        try:
+            # Try second pass unquote if it looks like double encoded
+            if re.search(r'%[0-9a-fA-F]{2}', decoded_path):
+                decoded_path = urllib.parse.unquote(decoded_path)
+        except: pass
+
     file_path = Path(decoded_path)
+    log.info(f"Preview request: path='{path}' -> decoded='{decoded_path}'")
     
     # Extract audit_id from path and check visibility
     parts = file_path.parts
