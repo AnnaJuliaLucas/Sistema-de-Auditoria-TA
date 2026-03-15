@@ -82,38 +82,76 @@ def extract_zip_robustly(zip_path: Path, extract_to: Path):
         except:
             pass
 
-def ensure_local_file(file_path: Path):
-    """If file missing on Vercel, re-download and re-extract ZIP."""
-    if file_path.exists():
-        return
+def resolve_and_ensure_path(requested_path: Path, audit_id: int = None) -> Path:
+    """
+    Checks if a requested path exists. If not, attempts to remap it to the 
+    local 'uploads' directory if it belongs to an audit, and triggers 
+    lazy restoration (ZIP download/extract) if needed.
+    """
+    if requested_path.exists():
+        return requested_path
+        
+    log.info(f"File missing: {requested_path}. Attempting to resolve...")
     
-    log.info(f"File missing: {file_path}. Attempting lazy restoration...")
-    
-    # Try to find auditoria_id in path
-    parts = file_path.parts
-    try:
-        idx = parts.index("uploads")
-        audit_id = int(parts[idx+1])
-    except (ValueError, IndexError):
-        return
+    # 1. Detect Audit ID if not provided
+    if not audit_id:
+        parts = requested_path.parts
+        try:
+            if "uploads" in parts:
+                idx = parts.index("uploads")
+                audit_id = int(parts[idx+1])
+            else:
+                # Identification by prefix matching
+                from backend.db import listar_auditorias
+                all_audits = listar_auditorias()
+                path_str_norm = str(requested_path.absolute()).lower().replace("\\", "/")
+                for a in all_audits:
+                    fp = a.get("evidence_folder_path")
+                    if fp:
+                        fp_norm = str(Path(fp).absolute()).lower().replace("\\", "/")
+                        if path_str_norm.startswith(fp_norm):
+                            audit_id = a["id"]
+                            break
+        except: pass
 
+    if not audit_id:
+        return requested_path 
+        
+    # 2. Get Audit Data
     aud = get_auditoria(audit_id)
-    if not aud or not aud.get("evidence_zip_url"):
-        log.warning(f"Restoration failed: No zip URL for audit {audit_id}")
-        return
+    if not aud:
+        return requested_path
+        
+    # 3. Handle Remapping (Local Path -> Server Uploads)
+    server_path = requested_path
+    folder_db = aud.get("evidence_folder_path")
+    
+    if folder_db:
+        path_str = str(requested_path.absolute()).replace("\\", "/")
+        folder_db_norm = str(Path(folder_db).absolute()).replace("\\", "/")
+        if path_str.lower().startswith(folder_db_norm.lower()):
+            rel_path = path_str[len(folder_db_norm):].lstrip("/")
+            # Garanto que rel_path use separadores do SO atual
+            rel_path_obj = Path(rel_path.replace("\\", "/"))
+            server_path = BASE_DIR / "uploads" / str(audit_id) / "evidences" / rel_path_obj
 
-    zip_url = aud["evidence_zip_url"]
-    audit_dir = BASE_DIR / "uploads" / str(audit_id)
-    zip_path = audit_dir / f"evidences_{audit_id}.zip"
-    extract_dir = audit_dir / "evidences"
-
-    try:
-        log.info(f"Downloading {zip_url} to {zip_path}")
-        urllib.request.urlretrieve(zip_url, zip_path)
-        extract_zip_robustly(zip_path, extract_dir)
-        log.info(f"Restoration of audit {audit_id} complete.")
-    except Exception as e:
-        log.error(f"Lazy restoration failed: {e}")
+    # 4. Lazy Restoration if Server Path missing
+    if not server_path.exists() and aud.get("evidence_zip_url"):
+        zip_url = aud["evidence_zip_url"]
+        audit_dir = BASE_DIR / "uploads" / str(audit_id)
+        zip_path = audit_dir / f"evidences_{audit_id}.zip"
+        extract_dir = audit_dir / "evidences"
+        
+        try:
+            log.info(f"Restoring audit {audit_id} from {zip_url}...")
+            audit_dir.mkdir(parents=True, exist_ok=True)
+            urllib.request.urlretrieve(zip_url, zip_path)
+            extract_zip_robustly(zip_path, extract_dir)
+            log.info(f"Restoration complete.")
+        except Exception as e:
+            log.error(f"Restoration failed for audit {audit_id}: {e}")
+            
+    return server_path
 
 def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, aud: dict = None) -> dict:
     """Get from cache or build and cache evidence map. Fallbacks to DB if folder missing."""
@@ -298,15 +336,15 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
         file_path = Path(decoded_path)
         log.info(f"Serve request: path='{path}' -> decoded='{decoded_path}' -> exists={file_path.exists()}")
         
-        # Extract audit_id from path and check visibility
+        # 1. Extract audit_id and check visibility
         parts = file_path.parts
         audit_id = None
+        # Identification Logic (Reuse the logic to get audit_id for security check)
         try:
             if "uploads" in parts:
                 idx = parts.index("uploads")
                 audit_id = int(parts[idx+1])
             else:
-                # Robust detection for local/absolute paths: find audit by evidence_folder_path
                 from backend.db import listar_auditorias
                 all_audits = listar_auditorias()
                 path_str_norm = str(file_path.absolute()).lower().replace("\\", "/")
@@ -326,8 +364,8 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
         except (ValueError, IndexError):
             pass
 
-        # Ensure file exists (lazy restore if missing)
-        ensure_local_file(file_path)
+        # 2. Resolve Path and Ensure local existence (Magic happening here)
+        file_path = resolve_and_ensure_path(file_path, audit_id)
 
         if not file_path.exists():
             log.warning(f"File not found on disk: {file_path}")
@@ -411,8 +449,8 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
     except (ValueError, IndexError):
         pass
 
-    # Ensure file exists (lazy restore if missing)
-    ensure_local_file(file_path)
+    # Resolve Path and Ensure local existence
+    file_path = resolve_and_ensure_path(file_path, audit_id)
 
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
