@@ -291,7 +291,7 @@ def get_all_evidences(auditoria_id: int, refresh: bool = False):
         return {}
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
-    mapa = _get_or_build_evidence_map(ev_folder, refresh=refresh, aud=aud)
+    mapa = _get_or_build_evidence_map(ev_folder, refresh=refresh, audit=aud)
     
     # Format map for frontend (keys as strings "P.S")
     formatted = {}
