@@ -116,17 +116,24 @@ def resolve_and_ensure_path(requested_path: Path, audit_id: int = None) -> Path:
     if not aud:
         return requested_path
     
-    # Map to server internal uploads folder
+    # Map to server internal uploads folder or the explicitly configured path
     folder_db = aud.get("evidence_folder_path")
     server_base = BASE_DIR / "uploads" / str(audit_id) / "evidences"
     
-    # Determine the relative path from the designated evidence root
+    # Priority: if folder_db exists, use it as the base for resolution
+    base_path = Path(folder_db) if folder_db and Path(folder_db).exists() else server_base
+    
+    # Determine the relative path from the base root
     rel_path_str = ""
     if folder_db:
-        path_str_norm = str(requested_path.absolute()).replace("\\", "/").lower()
-        folder_db_norm = str(Path(folder_db).absolute()).replace("\\", "/").lower()
-        if path_str_norm.startswith(folder_db_norm):
-            rel_path_str = str(requested_path.absolute()).replace("\\", "/")[len(folder_db_norm):].lstrip("/")
+        try:
+            p_abs = requested_path.absolute()
+            f_abs = Path(folder_db).absolute()
+            p_str_norm = str(p_abs).replace("\\", "/").lower()
+            f_str_norm = str(f_abs).replace("\\", "/").lower()
+            if p_str_norm.startswith(f_str_norm):
+                rel_path_str = str(p_abs).replace("\\", "/")[len(f_str_norm):].lstrip("/")
+        except: pass
     
     if not rel_path_str:
         # If we can't determine rel_path from folder_db, maybe it's already an 'uploads' path
@@ -134,9 +141,12 @@ def resolve_and_ensure_path(requested_path: Path, audit_id: int = None) -> Path:
         if "evidences" in parts:
             idx = parts.index("evidences")
             rel_path_str = "/".join(parts[idx+1:])
+        else:
+            # Last resort: just use the filename
+            rel_path_str = requested_path.name
 
-    # 3. Check for Lazy Restoration if the entire evidences folder is missing
-    if not server_base.exists() and aud.get("evidence_zip_url"):
+    # 3. Check for Lazy Restoration if using server_base and it's missing
+    if base_path == server_base and not server_base.exists() and aud.get("evidence_zip_url"):
         zip_url = aud["evidence_zip_url"]
         zip_path = (BASE_DIR / "uploads" / str(audit_id)) / f"evidences_{audit_id}.zip"
         try:
@@ -302,9 +312,9 @@ def get_all_evidences(auditoria_id: int, refresh: bool = False):
     if not aud:
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
-    # Visibility Rule: Only show evidence if audit is "em_andamento"
+    # Visibility Rule: Allow "em_andamento", "aprovada", "concluida", "finalizada"
     status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
-    if status_norm != "em_andamento":
+    if status_norm not in ["em_andamento", "aprovada", "concluida", "finalizada"]:
         return {}
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
@@ -333,9 +343,9 @@ def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int):
     if not aud:
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
-    # Visibility Rule: Only show evidence if audit is "em_andamento"
+    # Visibility Rule: Allow viewing "em_andamento", "aprovada", "concluida"
     status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
-    if status_norm != "em_andamento":
+    if status_norm not in ["em_andamento", "aprovada", "concluida", "finalizada"]:
         return {}
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
@@ -368,7 +378,8 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
         # 1. Extract audit_id and check visibility
         parts = file_path.parts
         audit_id = None
-        log.info(f"Serve request: path='{path}' -> decoded='{decoded_path}'")
+        log.info(f"Serve request: audit={audit_id} path='{path}' -> decoded='{decoded_path}'")
+        
         # Identification Logic (Reuse the logic to get audit_id for security check)
         try:
             if "uploads" in parts:
@@ -490,8 +501,8 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
         if audit_id:
             aud = get_auditoria(audit_id)
             status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
-            if status_norm != "em_andamento":
-                raise HTTPException(status_code=403, detail="Acesso negado: Auditoria não em andamento.")
+            if status_norm not in ["em_andamento", "aprovada", "concluida", "finalizada"]:
+                raise HTTPException(status_code=403, detail="Acesso negado: Auditoria em status restrito.")
     except (ValueError, IndexError):
         pass
 
@@ -553,3 +564,4 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
             return {"type": "error", "name": file_path.name, "error": str(e)}
 
     return {"type": "unsupported", "name": file_path.name}
+
