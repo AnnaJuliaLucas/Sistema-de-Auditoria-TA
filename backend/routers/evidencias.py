@@ -235,7 +235,8 @@ def get_all_evidences(auditoria_id: int, refresh: bool = False):
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
     # Visibility Rule: Only show evidence if audit is "em_andamento"
-    if aud.get("status") != "em_andamento":
+    status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
+    if status_norm != "em_andamento":
         return {}
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
@@ -265,7 +266,8 @@ def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int):
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
 
     # Visibility Rule: Only show evidence if audit is "em_andamento"
-    if aud.get("status") != "em_andamento":
+    status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
+    if status_norm != "em_andamento":
         return {}
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
@@ -298,12 +300,29 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
         
         # Extract audit_id from path and check visibility
         parts = file_path.parts
+        audit_id = None
         try:
-            idx = parts.index("uploads")
-            audit_id = int(parts[idx+1])
-            aud = get_auditoria(audit_id)
-            if aud and aud.get("status") != "em_andamento":
-                raise HTTPException(status_code=403, detail="Acesso negado: Auditoria finalizada/não em andamento.")
+            if "uploads" in parts:
+                idx = parts.index("uploads")
+                audit_id = int(parts[idx+1])
+            else:
+                # Robust detection for local/absolute paths: find audit by evidence_folder_path
+                from backend.db import listar_auditorias
+                all_audits = listar_auditorias()
+                path_str_norm = str(file_path.absolute()).lower().replace("\\", "/")
+                for a in all_audits:
+                    fp = a.get("evidence_folder_path")
+                    if fp:
+                        fp_norm = str(Path(fp).absolute()).lower().replace("\\", "/")
+                        if path_str_norm.startswith(fp_norm):
+                            audit_id = a["id"]
+                            break
+            
+            if audit_id:
+                aud = get_auditoria(audit_id)
+                status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
+                if status_norm != "em_andamento":
+                    raise HTTPException(status_code=403, detail=f"Acesso negado: Auditoria '{aud.get('unidade')}' não está mais em andamento.")
         except (ValueError, IndexError):
             pass
 
@@ -318,7 +337,7 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
             raise HTTPException(status_code=400, detail="Caminho não é um arquivo")
 
         ext = file_path.suffix.lower()
-        if ext not in EXTS_ALL:
+        if ext not in {e.lower() for e in EXTS_ALL}:
             raise HTTPException(status_code=400, detail=f"Tipo de arquivo não suportado: {ext}")
 
         media_types = {
@@ -366,12 +385,29 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
     
     # Extract audit_id from path and check visibility
     parts = file_path.parts
+    audit_id = None
     try:
-        idx = parts.index("uploads")
-        audit_id = int(parts[idx+1])
-        aud = get_auditoria(audit_id)
-        if aud and aud.get("status") != "em_andamento":
-            raise HTTPException(status_code=403, detail="Acesso negado: Auditoria finalizada/não em andamento.")
+        if "uploads" in parts:
+            idx = parts.index("uploads")
+            audit_id = int(parts[idx+1])
+        else:
+            # Robust detection for local/absolute paths
+            from backend.db import listar_auditorias
+            all_audits = listar_auditorias()
+            path_str_norm = str(file_path.absolute()).lower().replace("\\", "/")
+            for a in all_audits:
+                fp = a.get("evidence_folder_path")
+                if fp:
+                    fp_norm = str(Path(fp).absolute()).lower().replace("\\", "/")
+                    if path_str_norm.startswith(fp_norm):
+                        audit_id = a["id"]
+                        break
+        
+        if audit_id:
+            aud = get_auditoria(audit_id)
+            status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
+            if status_norm != "em_andamento":
+                raise HTTPException(status_code=403, detail="Acesso negado: Auditoria não em andamento.")
     except (ValueError, IndexError):
         pass
 
