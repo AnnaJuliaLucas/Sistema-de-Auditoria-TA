@@ -37,14 +37,13 @@ def extract_zip_robustly(zip_path: Path, extract_to: Path):
     
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         for member in zip_ref.infolist():
-            # Tentar corrigir encoding se o nome parecer CP437 (comum em ZIPs de Windows sem bit UTF-8)
             try:
-                # Se o nome original vier como CP437, tentamos converter para UTF-8 se contiver caracteres estendidos
                 filename = member.filename
                 try:
                     # O zipfile do Python tenta decodar CP437 se não houver flag UTF-8. 
-                    # Se decodou algo com caracteres especiais que parecem CP437, re-decodamos.
-                    filename = filename.encode('cp437').decode('utf-8')
+                    # No Brasil, é comum ser CP850. Tentamos re-decodar.
+                    if any(ord(c) > 127 for c in filename):
+                        filename = filename.encode('cp437').decode('cp850')
                 except:
                     pass
                 
