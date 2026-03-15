@@ -151,10 +151,10 @@ def resolve_and_ensure_path(requested_path: Path, audit_id: int = None) -> Path:
             log.error(f"Restoration failed for audit {audit_id}: {e}")
 
     # 4. Recursive Fuzzy Matching (Component by Component)
-    # Start from the base path (either local folder or server uploads)
-    current_path = base_path
+    # Start from a known existing root
+    current_path = server_base
     if not current_path.exists():
-        return requested_path # Can't even find the base folder
+        return requested_path # Can't even find the base evidence folder
         
     path_components = [p for p in rel_path_str.replace("\\", "/").split("/") if p]
     
@@ -389,9 +389,8 @@ def serve_file(path: str = Query(..., description="Absolute path to the evidence
             if audit_id:
                 aud = get_auditoria(audit_id)
                 status_norm = str(aud.get("status") or "").lower().strip().replace(" ", "_")
-                # Allow viewing for most status types
-                if status_norm not in ["em_andamento", "aprovada", "concluida", "finalizada"]:
-                    raise HTTPException(status_code=403, detail=f"Acesso negado: Auditoria '{aud.get('unidade')}' está com status '{status_norm}'.")
+                if status_norm != "em_andamento":
+                    raise HTTPException(status_code=403, detail=f"Acesso negado: Auditoria '{aud.get('unidade')}' não está mais em andamento.")
         except (ValueError, IndexError):
             pass
 
