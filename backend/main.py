@@ -50,6 +50,16 @@ async def lifespan(app: FastAPI):
 
     log.info("🚀 Iniciando Sistema de Auditoria TA — Backend API")
     try:
+        from pathlib import Path
+        ev_file = Path("backend/routers/evidencias.py")
+        if ev_file.exists():
+            content = ev_file.read_text(errors='replace')
+            log.info(f"DEBUG: evidencias.py first 100 chars: {content[:100]}")
+            import hashlib
+            log.info(f"DEBUG: evidencias.py md5: {hashlib.md5(content.encode()).hexdigest()}")
+        else:
+            log.info("DEBUG: evidencias.py NOT FOUND locally")
+        
         from backend.db import init_db
         init_db()
         log.info("✅ Banco de dados inicializado")
