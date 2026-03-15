@@ -150,16 +150,30 @@ def resolve_and_ensure_path(requested_path: Path, audit_id: int = None) -> Path:
         except Exception as e:
             log.error(f"Restoration failed for audit {audit_id}: {e}")
             
+    # 5. Fuzzy matching if still not found (handles case-sensitivity or normalization diffs)
+    if not server_path.exists():
+        try:
+            parent = server_path.parent
+            if parent.exists():
+                # Case-insensitive search in the parent directory
+                target_name = server_path.name.lower()
+                for child in parent.iterdir():
+                    if child.is_file() and child.name.lower() == target_name:
+                        log.info(f"Fuzzy Match found: {child.name} for {server_path.name}")
+                        return child
+        except Exception as e:
+            log.debug(f"Fuzzy matching failed: {e}")
+            
     return server_path
 
-def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, aud: dict = None) -> dict:
+def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, audit: dict = None) -> dict:
     """Get from cache or build and cache evidence map. Fallbacks to DB if folder missing."""
     if not ev_folder or not Path(ev_folder).is_dir():
         # Fallback to DB if we have the audit dict
-        if aud and aud.get("evidence_map"):
+        if audit and audit.get("evidence_map"):
             try:
                 import json
-                db_map = json.loads(aud["evidence_map"])
+                db_map = json.loads(audit["evidence_map"])
                 # Convert "1.0" string keys back to (1, 0) tuples
                 return {tuple(map(int, k.split('.'))): v for k, v in db_map.items()}
             except Exception as e:

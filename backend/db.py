@@ -516,13 +516,24 @@ def get_auditoria(auditoria_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
-def atualizar_status(auditoria_id: int, status: str):
+def atualizar_status(auditoria_id: int, status: str, usuario: str = None):
     with get_db() as conn:
         now = datetime.now().isoformat()
         conn.execute(
             "UPDATE auditorias SET status=?, data_atualizacao=? WHERE id=?",
             (status, now, auditoria_id)
         )
+        log.info(f"Audit {auditoria_id} status updated to {status} by {usuario or 'system'}")
+
+
+def deletar_auditoria(auditoria_id: int):
+    """Permanently removes an audit and all its evaluations from the database."""
+    with get_db() as conn:
+        # Evaluations first (FK)
+        conn.execute("DELETE FROM avaliacoes WHERE auditoria_id=?", (auditoria_id,))
+        # Audit itself
+        conn.execute("DELETE FROM auditorias WHERE id=?", (auditoria_id,))
+        log.info(f"Audit {auditoria_id} and its evaluations deleted from DB.")
 
 
 def atualizar_config(auditoria_id: int, assessment_path: str,

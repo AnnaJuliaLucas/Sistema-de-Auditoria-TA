@@ -508,3 +508,68 @@ def debug_import_audit(audit_id: int):
         return {"audit_id": audit_id, "path": assessment_path, "parsed": results}
     except Exception as e:
         return {"error": str(e), "traceback": traceback.format_exc()}
+
+
+@router.post("/storage-cleanup")
+def storage_cleanup():
+    """Diagnostic tool to reclaim disk space from orphaned files and folders."""
+    from backend.db import BASE_DIR, listar_auditorias
+    import shutil
+    import os
+    from pathlib import Path
+    
+    results = {
+        "deleted_zip_count": 0,
+        "deleted_folder_count": 0,
+        "errors": []
+    }
+    
+    upload_dir = BASE_DIR / "uploads"
+    if not upload_dir.exists():
+        return {"data": "Upload directory not found", "results": results}
+        
+    all_audits = listar_auditorias()
+    active_audit_ids = {str(a["id"]) for a in all_audits}
+    em_andamento_ids = {str(a["id"]) for a in all_audits if (a.get("status") or "").lower().strip().replace(" ", "_") == "em_andamento"}
+    
+    log.info(f"Storage Cleanup started. Active: {active_audit_ids}, In-Progress: {em_andamento_ids}")
+
+    # Iterate through all items in uploads/
+    for item in list(upload_dir.iterdir()):
+        try:
+            # 1. Cleanup ZIP files in the root of uploads
+            if item.is_file() and item.suffix.lower() == ".zip":
+                item.unlink()
+                results["deleted_zip_count"] += 1
+                continue
+                
+            if item.is_dir():
+                audit_id = item.name
+                
+                # 2. Delete folders for audits that don't exist anymore
+                if audit_id not in active_audit_ids:
+                    shutil.rmtree(item)
+                    results["deleted_folder_count"] += 1
+                    continue
+                
+                # 3. Delete folders for audits that are NOT "em_andamento"
+                if audit_id not in em_andamento_ids:
+                    shutil.rmtree(item)
+                    results["deleted_folder_count"] += 1
+                    continue
+                
+                # 4. Deep cleanup: Find and delete any ZIPs inside the audit folder (extracts are already done)
+                for sub_zip in list(item.glob("*.zip")):
+                    sub_zip.unlink()
+                    results["deleted_zip_count"] += 1
+                
+                # Also check subfolders (like 'evidences/') for stray zips
+                for sub_zip in list(item.rglob("*.zip")):
+                    sub_zip.unlink()
+                    results["deleted_zip_count"] += 1
+                    
+        except Exception as e:
+            results["errors"].append(f"Error processing {item}: {str(e)}")
+            
+    log.info(f"Cleanup finished: {results}")
+    return results
