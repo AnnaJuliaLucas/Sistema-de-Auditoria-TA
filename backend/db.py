@@ -270,7 +270,10 @@ def init_db():
         try:
             with _sqlite_connect() as conn:
                 # auditorias table migrations
-                for col_name, col_type in [("evidence_map", "TEXT DEFAULT '{}'"), ("evidence_zip_url", "TEXT DEFAULT ''")]:
+                for col_name, col_type in [("evidence_map", "TEXT DEFAULT '{}'"), 
+                                           ("evidence_zip_url", "TEXT DEFAULT ''"),
+                                           ("ai_provider", "TEXT DEFAULT ''"),
+                                           ("ai_base_url", "TEXT DEFAULT ''")]:
                     try:
                         conn.execute(f"ALTER TABLE auditorias ADD COLUMN {col_name} {col_type}")
                     except sqlite3.OperationalError:
@@ -305,7 +308,7 @@ def _init_postgres():
                 assessment_file_path TEXT DEFAULT '',
                 evidence_folder_path TEXT DEFAULT '',
                 openai_api_key TEXT DEFAULT '',
-                ai_provider TEXT DEFAULT 'openai',
+                ai_provider TEXT DEFAULT '',
                 ai_base_url TEXT DEFAULT '',
                 modo_analise TEXT DEFAULT 'completo',
                 observacoes TEXT DEFAULT '',
@@ -325,6 +328,17 @@ def _init_postgres():
                                WHERE table_name='auditorias' AND column_name='evidence_zip_url') THEN
                     ALTER TABLE auditorias ADD COLUMN evidence_zip_url TEXT DEFAULT '';
                 END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='auditorias' AND column_name='ai_provider') THEN
+                    ALTER TABLE auditorias ADD COLUMN ai_provider TEXT DEFAULT '';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='auditorias' AND column_name='ai_base_url') THEN
+                    ALTER TABLE auditorias ADD COLUMN ai_base_url TEXT DEFAULT '';
+                END IF;
+
+                -- Fix stuck 'openai' providers that should be falling back to global
+                UPDATE auditorias SET ai_provider = '' WHERE ai_provider = 'openai' AND (openai_api_key IS NULL OR openai_api_key = '');
             END $$;
 
             CREATE TABLE IF NOT EXISTS avaliacoes (

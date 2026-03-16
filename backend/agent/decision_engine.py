@@ -28,15 +28,20 @@ def _resolve_api_key(body_key: str, audit: dict) -> str:
         return body_key
     key = audit.get("openai_api_key", "")
     if key:
+        log.info(f"Resolved API Key from Audit: {key[:5]}...")
         return key
     try:
         from backend.db import get_system_config
         config_key = get_system_config("openai_api_key")
         if config_key:
+            log.info("Resolved API Key from System Config")
             return config_key
     except Exception:
         pass
-    return os.environ.get("OPENAI_API_KEY", "")
+    env_key = os.environ.get("OPENAI_API_KEY", "")
+    if env_key:
+        log.info("Resolved API Key from Environment")
+    return env_key
 
 
 def _resolve_provider(body_provider: str, audit: dict) -> str:
@@ -45,11 +50,15 @@ def _resolve_provider(body_provider: str, audit: dict) -> str:
         return body_provider
     provider = audit.get("ai_provider", "")
     if provider:
+        log.info(f"Resolved Provider from Audit: {provider}")
         return provider
     try:
         from backend.db import get_system_config
-        return get_system_config("ai_provider", "openai")
+        global_p = get_system_config("ai_provider", "openai")
+        log.info(f"Resolved Provider from Global Config: {global_p}")
+        return global_p
     except Exception:
+        log.warning("Failed to get global ai_provider, defaulting to openai")
         return "openai"
 
 
@@ -141,9 +150,15 @@ def analyze_single_subitem(
     resolved_provider = _resolve_provider(provider, audit)
     resolved_url = _resolve_base_url(base_url, audit)
 
+    log.info(f"Agent Engine: Resolving for practice {avaliacao.get('pratica_num')} subitem {avaliacao.get('subitem_idx')}")
+    log.info(f" > Provider: {resolved_provider}")
+    log.info(f" > Key present: {bool(resolved_key)}")
+    log.info(f" > Custom URL: {resolved_url}")
+
     # Permitir chave vazia se for Ollama, Agente Interno ou se houver uma Base URL custom
     needs_key = resolved_provider not in ("ollama", "interno") and not resolved_url
     if needs_key and not resolved_key:
+        log.error(f"Agent Engine: Blocked due to missing API Key for provider {resolved_provider}")
         return {
             "erro": "API Key não configurada. Configure na auditoria ou globalmente.",
             "status": "error",
