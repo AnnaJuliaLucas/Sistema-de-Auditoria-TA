@@ -285,6 +285,12 @@ def init_db():
                     except sqlite3.OperationalError:
                         pass # already exists
                 conn.commit()
+                
+                # --- NEW CLEANUP FOR SQLITE ---
+                # Fix stuck 'openai' providers that should be falling back to global
+                conn.execute("UPDATE auditorias SET ai_provider = '' WHERE ai_provider = 'openai' AND (openai_api_key IS NULL OR openai_api_key = '')")
+                conn.commit()
+                log.info("SQLite defensive cleanup: cleared 'openai' from audits without keys")
         except Exception as repair_err:
             log.warning(f"Failed to perform defensive migration: {repair_err}")
 
