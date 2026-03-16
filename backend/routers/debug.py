@@ -2,6 +2,7 @@
 debug.py — Diagnostic endpoints for Vercel environment.
 """
 from fastapi import APIRouter
+from pathlib import Path
 import os
 import sys
 import platform
@@ -11,6 +12,11 @@ from datetime import datetime
 
 router = APIRouter(prefix="/api/debug", tags=["debug"])
 log = logging.getLogger("auditoria_debug")
+
+# Add parent dir to ensure we can import backend packages and root modules
+_parent = str(Path(__file__).resolve().parent.parent.parent)
+if _parent not in sys.path:
+    sys.path.insert(0, _parent)
 
 @router.get("/")
 def get_debug_info():
@@ -37,6 +43,52 @@ def get_debug_info():
         "backend_dir_exists": os.path.exists("backend"),
         "api_dir_exists": os.path.exists("api")
     }
+
+@router.get("/migrate/subitem-names")
+def migrate_subitem_names():
+    """Updates descriptive names for all subitems currently named 'Subitem X'."""
+    from backend.db import get_db, USE_POSTGRES
+    from criterios_oficiais import CRITERIOS
+    
+    results = {"started": str(datetime.now()), "updated": 0, "errors": []}
+    
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Select all that look like generic names
+            q_select = "SELECT id, pratica_num, subitem_idx, subitem_nome FROM avaliacoes WHERE subitem_nome LIKE 'Subitem %'"
+            if USE_POSTGRES:
+                q_select = "SELECT id, pratica_num, subitem_idx, subitem_nome FROM avaliacoes WHERE subitem_nome ILIKE 'Subitem %'"
+            
+            cursor.execute(q_select)
+            rows = cursor.fetchall()
+            
+            for row in rows:
+                # Handle both sqlite3.Row and psycopg2.extras.DictRow
+                if hasattr(row, 'keys'):
+                    r = dict(row)
+                else:
+                    r = {'id': row[0], 'pratica_num': row[1], 'subitem_idx': row[2]}
+                
+                key = (r['pratica_num'], r['subitem_idx'])
+                if key in CRITERIOS:
+                    new_name = CRITERIOS[key]['subitem']
+                    q_upd = "UPDATE avaliacoes SET subitem_nome = ? WHERE id = ?"
+                    if USE_POSTGRES:
+                        q_upd = "UPDATE avaliacoes SET subitem_nome = %s WHERE id = %s"
+                    
+                    cursor.execute(q_upd, (new_name, r['id']))
+                    results["updated"] += 1
+            
+            conn.commit()
+    except Exception as e:
+        results["errors"].append(str(e))
+        log.error(f"Migration error: {e}")
+        log.error(traceback.format_exc())
+        
+    results["finished"] = str(datetime.now())
+    return results
 
 @router.get("/libs")
 def get_installed_libs():

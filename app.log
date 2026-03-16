@@ -1,0 +1,17 @@
+2026-03-15 21:13:17,186 [INFO] auditoria_db: Using SQLite: C:\AuditoriaTA\dados\auditoria_ta.db
+2026-03-15 21:13:26,128 [INFO] auditoria_api: DEBUG: evidencias.py first 100 chars: """
+routers/evidencias.py — Evidence file listing, serving, and criteria retrieval.
+"""
+from fasta
+2026-03-15 21:13:26,128 [INFO] auditoria_api: DEBUG: evidencias.py md5: e8a0c41dba9f62bc156bff9219a3d9f8
+2026-03-15 21:13:50,781 [INFO] auditoria_db: Test user seeded/verified (existing passwords preserved)
+2026-03-15 21:13:50,806 [INFO] auditoria_db: Database initialized
+2026-03-15 21:56:44,692 [INFO] auditoria_db: Using SQLite: C:\AuditoriaTA\dados\auditoria_ta.db
+2026-03-15 21:58:31,586 [INFO] auditoria_db: Using SQLite: C:\AuditoriaTA\dados\auditoria_ta.db
+2026-03-15 21:58:32,729 [INFO] auditoria_api: DEBUG: evidencias.py first 100 chars: """
+routers/evidencias.py — Evidence file listing, serving, and criteria retrieval.
+"""
+from fasta
+2026-03-15 21:58:32,730 [INFO] auditoria_api: DEBUG: evidencias.py md5: e8a0c41dba9f62bc156bff9219a3d9f8
+2026-03-15 21:58:34,493 [INFO] auditoria_db: Test user seeded/verified (existing passwords preserved)
+2026-03-15 21:58:34,502 [INFO] auditoria_db: Database initialized

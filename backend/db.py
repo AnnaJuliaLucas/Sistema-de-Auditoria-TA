@@ -834,7 +834,7 @@ def duplicar_auditoria(auditoria_id: int, novo_ciclo: str) -> Optional[int]:
                          subitem_idx, subitem_nome, evidencia_descricao,
                          nivel_0, nivel_1, nivel_2, nivel_3, nivel_4,
                          nota_self_assessment, decisao)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,? 'pendente')
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pendente')
                 """, (
                     novo_id,
                     av["pratica_num"], av["pratica_nome"],

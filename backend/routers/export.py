@@ -126,15 +126,20 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
     # 5. Populate Subitems (Baseline)
     try:
         from checklist_po_aut_002 import CHECKLIST
+        from criterios_oficiais import CRITERIOS
         with get_db() as conn:
             for key, info in CHECKLIST.items():
                 p_num, s_idx = key
-                p_nome = "Rotinas de TA" # Default for speed, will be updated by Excel if possible
-                s_nome = f"Subitem {s_idx+1}"
+                p_nome = "Rotinas de TA" # Default
                 
-                # Nomes amigáveis se possível
+                # Get official names if available
+                crit_info = CRITERIOS.get(key, {})
+                s_nome = crit_info.get('subitem') or f"Subitem {s_idx+1}"
+                p_nome_oficial = crit_info.get('pratica')
+                
+                # Fallback mapping for practice names
                 pratica_nomes = {1:"Rotinas de TA", 2:"Sobressalentes", 3:"Mapa de Ativos", 4:"Conhecimento", 5:"Infraestrutura", 6:"Riscos", 7:"TI", 8:"Software/Hardware", 9:"Cyber"}
-                p_nome = pratica_nomes.get(p_num, p_nome)
+                p_nome = p_nome_oficial or pratica_nomes.get(p_num, p_nome)
 
                 q_ins = "INSERT OR IGNORE INTO avaliacoes (auditoria_id, pratica_num, pratica_nome, subitem_idx, subitem_nome, evidencia_descricao, decisao) VALUES (?,?,?,?,?,?,'pendente')"
                 if USE_POSTGRES: 
