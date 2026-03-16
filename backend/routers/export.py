@@ -218,8 +218,8 @@ async def criar_auditoria(
             INSERT INTO auditorias
                 (unidade, area, ciclo, data_criacao, data_atualizacao,
                  status, assessment_file_path, evidence_folder_path,
-                 openai_api_key, observacoes, modo_analise)
-            VALUES (?,?,?,?,?,'em_andamento','','',?,?,?)
+                 openai_api_key, observacoes, modo_analise, ai_provider, ai_base_url)
+            VALUES (?,?,?,?,?,'em_andamento','','',?,?,?,'','')
         """
         if USE_POSTGRES: q = q.replace("?", "%s")
         conn.execute(q, (unidade, area, ciclo, now, now, openai_api_key, observacoes, modo_analise))

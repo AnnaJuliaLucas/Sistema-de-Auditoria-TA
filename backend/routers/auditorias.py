@@ -4,8 +4,11 @@ routers/auditorias.py — Endpoints for audit CRUD operations.
 from fastapi import APIRouter, HTTPException
 from backend.db import listar_auditorias, get_auditoria, atualizar_status, atualizar_config, estatisticas_auditoria
 from backend.models import AuditoriaOut, StatusUpdate, AuditoriaConfig, EstatisticasOut
+import logging
 from backend.auth import get_current_user
 from fastapi import Depends
+
+log = logging.getLogger("auditoria_api")
 
 router = APIRouter(prefix="/api/auditorias", tags=["auditorias"])
 
@@ -75,6 +78,7 @@ def delete_auditoria_endpoint(auditoria_id: int, current_user: str = Depends(get
 @router.put("/{auditoria_id}/config")
 def update_config(auditoria_id: int, body: AuditoriaConfig, current_user: str = Depends(get_current_user)):
     """Update audit configuration (paths, API key)."""
+    log.info(f"API: update_config for audit {auditoria_id}. Provider in body: '{body.ai_provider}'")
     atualizar_config(
         auditoria_id, body.assessment_file_path,
         body.evidence_folder_path, body.openai_api_key,

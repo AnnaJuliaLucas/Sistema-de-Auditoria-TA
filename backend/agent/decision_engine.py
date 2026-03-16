@@ -48,7 +48,16 @@ def _resolve_provider(body_provider: str, audit: dict) -> str:
     """Resolve LLM provider from: request body → audit config → system config."""
     if body_provider:
         return body_provider
+        
     provider = audit.get("ai_provider", "")
+    key = audit.get("openai_api_key", "")
+    
+    # Se estiver explicitamente como 'openai' mas não tiver chave local, tratamos como vazio
+    # para permitir que o sistema olhe a configuração global (que pode ser Agente Interno)
+    if provider == "openai" and not key:
+        log.info("Resolved Provider 'openai' from Audit had no key, clearing for global fallback.")
+        provider = ""
+
     if provider:
         log.info(f"Resolved Provider from Audit: {provider}")
         return provider

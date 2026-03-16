@@ -337,6 +337,10 @@ def _init_postgres():
                     ALTER TABLE auditorias ADD COLUMN ai_base_url TEXT DEFAULT '';
                 END IF;
 
+                -- Ensure defaults are correct even if columns already existed
+                ALTER TABLE auditorias ALTER COLUMN ai_provider SET DEFAULT '';
+                ALTER TABLE auditorias ALTER COLUMN ai_base_url SET DEFAULT '';
+
                 -- Fix stuck 'openai' providers that should be falling back to global
                 UPDATE auditorias SET ai_provider = '' WHERE ai_provider = 'openai' AND (openai_api_key IS NULL OR openai_api_key = '');
             END $$;
