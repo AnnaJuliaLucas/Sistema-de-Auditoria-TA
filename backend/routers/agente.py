@@ -11,7 +11,7 @@ Analysis runs asynchronously via background threads. Clients poll
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import uuid
 import json
 import time

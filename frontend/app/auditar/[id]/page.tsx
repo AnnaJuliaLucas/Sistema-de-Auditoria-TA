@@ -358,9 +358,16 @@ export default function AuditarPage() {
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleAnalyzePractice(pratica); }}
                                                 disabled={batchAnalyzing !== null}
-                                                className="text-[10px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-tighter"
+                                                className="text-[10px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-tighter flex items-center gap-1"
                                             >
-                                                {batchAnalyzing === pratica.pratica_num ? "Analisando..." : "🤖 Analisar Tudo"}
+                                                {batchAnalyzing === pratica.pratica_num ? (
+                                                    <>
+                                                        <span className="animate-spin text-[8px]">🤖</span>
+                                                        {agentProgress 
+                                                            ? `${Math.round((agentProgress.current / agentProgress.total) * 100)}%`
+                                                            : "..."}
+                                                    </>
+                                                ) : "🤖 Analisar Tudo"}
                                             </button>
                                         )}
                                     </div>
