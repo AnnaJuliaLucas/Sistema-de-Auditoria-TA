@@ -53,7 +53,7 @@ def _resolve_provider(body_provider: str, audit: dict) -> str:
         return "openai"
 
 
-def _resolve_base_url(body_url: str, audit: dict) -> str:
+def _resolve_base_url(body_url: Optional[str], audit: dict) -> str:
     """Resolve base URL from: request body → audit config → system config."""
     if body_url:
         return body_url
@@ -114,7 +114,7 @@ def analyze_single_subitem(
     avaliacao: dict,
     api_key: str = "",
     provider: str = "",
-    base_url: str = "",
+    base_url: Optional[str] = None,
     economico: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -205,7 +205,7 @@ def analyze_all_pending(
     avaliacoes: List[dict],
     api_key: str = "",
     provider: str = "",
-    base_url: str = "",
+    base_url: Optional[str] = None,
     economico: bool = False,
     on_progress=None,
 ) -> Dict[str, Any]:
@@ -280,7 +280,7 @@ def analyze_selection(
     selected_ids: List[int],
     api_key: str = "",
     provider: str = "",
-    base_url: str = "",
+    base_url: Optional[str] = None,
     economico: bool = False,
     on_progress=None,
 ) -> Dict[str, Any]:

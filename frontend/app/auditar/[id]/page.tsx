@@ -71,17 +71,28 @@ export default function AuditarPage() {
         setAgentProgress({ current: 0, total: pendentes.length, message: `Iniciando análise da prática ${pratica.pratica_num}...` });
 
         try {
-            const { job_id } = await api.runAgentSelection(auditoriaId, {
+            const response = await api.runAgentSelection(auditoriaId, {
                 selecionados: pendentes.map(s => s.id),
-                provider: auditoria.ai_provider,
+                provider: auditoria.ai_provider || "openai",
                 base_url: auditoria.ai_base_url || "",
                 economico: auditoria.modo_analise === 'economico'
             });
 
-            // Polling loop
+            const { job_id } = response;
+            if (!job_id) {
+                // Already all done (edge case)
+                await loadData();
+                return;
+            }
+
+            // Polling loop with 10-minute timeout
             let finished = false;
+            const deadline = Date.now() + 10 * 60 * 1000;
             while (!finished) {
-                await new Promise(r => setTimeout(r, 2000)); // Poll every 2s for specific practice
+                if (Date.now() > deadline) {
+                    throw new Error("Tempo limite de 10 minutos excedido. A análise pode ainda estar rodando em segundo plano.");
+                }
+                await new Promise(r => setTimeout(r, 2000));
                 
                 const job = await api.getAgentJobStatus(job_id);
                 
@@ -123,16 +134,27 @@ export default function AuditarPage() {
         setAgentProgress({ current: 0, total: pendentes.length, message: "Iniciando agente..." });
         
         try {
-            const { job_id } = await api.runAgentBatch(auditoriaId, {
-                provider: auditoria.ai_provider,
+            const response = await api.runAgentBatch(auditoriaId, {
+                provider: auditoria.ai_provider || "openai",
                 base_url: auditoria.ai_base_url || "",
                 economico: auditoria.modo_analise === 'economico'
             });
 
-            // Polling loop
+            const { job_id } = response;
+            if (!job_id) {
+                await loadData();
+                alert("✨ Todos os subitens já foram analisados.");
+                return;
+            }
+
+            // Polling loop with 10-minute timeout
             let finished = false;
+            const deadline = Date.now() + 10 * 60 * 1000;
             while (!finished) {
-                await new Promise(r => setTimeout(r, 3000)); // Poll every 3s
+                if (Date.now() > deadline) {
+                    throw new Error("Tempo limite de 10 minutos excedido. A análise pode ainda estar rodando em segundo plano.");
+                }
+                await new Promise(r => setTimeout(r, 3000));
                 
                 const job = await api.getAgentJobStatus(job_id);
                 
