@@ -112,7 +112,7 @@ export default function AuditarPage() {
                             const firstErr = finalResult.detalhes_erros?.[0]?.erro || "Erro desconhecido";
                             throw new Error(`A análise terminou com ${finalResult.erros} erro(s). Primeiro erro: ${firstErr}`);
                         } else {
-                            setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído com sucesso!" });
+                            setAgentProgress({ current: subitensParaAnalisar.length, total: subitensParaAnalisar.length, message: "Concluído com sucesso!" });
                         }
                     } catch (resultErr: any) {
                         throw new Error(resultErr.message || "Erro ao obter o resultado final da análise.");
