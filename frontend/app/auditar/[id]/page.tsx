@@ -98,7 +98,21 @@ export default function AuditarPage() {
                 
                 if (job.status === 'done') {
                     finished = true;
-                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído!" });
+                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Finalizando e verificando resultados..." });
+                    
+                    try {
+                        const resultResponse = await api.getAgentJobResult(job_id);
+                        const finalResult = resultResponse.resultado;
+                        
+                        if (finalResult && finalResult.erros > 0) {
+                            const firstErr = finalResult.detalhes_erros?.[0]?.erro || "Erro desconhecido";
+                            throw new Error(`A análise terminou com ${finalResult.erros} erro(s). Primeiro erro: ${firstErr}`);
+                        } else {
+                            setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído com sucesso!" });
+                        }
+                    } catch (resultErr: any) {
+                        throw new Error(resultErr.message || "Erro ao obter o resultado final da análise.");
+                    }
                 } else if (job.status === 'error') {
                     throw new Error(job.erro || "Erro na análise do agente");
                 } else if (job.status === 'running' && job.progresso) {
@@ -160,7 +174,22 @@ export default function AuditarPage() {
                 
                 if (job.status === 'done') {
                     finished = true;
-                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído!" });
+                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Finalizando e verificando resultados..." });
+                    
+                    try {
+                        const resultResponse = await api.getAgentJobResult(job_id);
+                        const finalResult = resultResponse.resultado;
+                        
+                        if (finalResult && finalResult.erros > 0) {
+                            const firstErr = finalResult.detalhes_erros?.[0]?.erro || "Erro desconhecido";
+                            throw new Error(`A análise terminou com ${finalResult.erros} erro(s). Primeiro erro: ${firstErr}`);
+                        } else {
+                            setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído com sucesso!" });
+                            alert("✨ Missão cumprida! O Agente Auditor concluiu todas as análises pendentes com sucesso.");
+                        }
+                    } catch (resultErr: any) {
+                        throw new Error(resultErr.message || "Erro ao obter o resultado final da análise.");
+                    }
                 } else if (job.status === 'error') {
                     throw new Error(job.erro || "Erro na análise do agente");
                 } else if (job.status === 'running' && job.progresso) {
@@ -173,7 +202,6 @@ export default function AuditarPage() {
             }
             
             await loadData();
-            alert("✨ Missão cumprida! O Agente Auditor concluiu todas as análises pendentes.");
         } catch (e: any) {
             console.error("Erro no Agente Auditor:", e);
             alert(`⚠️ Erro no Agente: ${e.message}`);
