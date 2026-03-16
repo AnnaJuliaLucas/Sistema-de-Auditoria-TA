@@ -110,6 +110,21 @@ export interface Pratica {
   pendentes: number;
 }
 
+export interface AgentJob {
+  job_id: string;
+  status: "pending" | "running" | "done" | "error";
+  tipo: "single" | "batch";
+  auditoria_id: number;
+  progresso?: {
+    current: number;
+    total: number;
+    avaliacao_id?: number;
+    ultima_decisao?: string;
+  };
+  erro?: string;
+  resultado?: any;
+}
+
 export interface ComparativoItem {
   pratica_num: number;
   pratica_nome: string;
@@ -254,7 +269,20 @@ export const api = {
       method: "POST",
       body: formData,
     });
-  }
+  },
+
+  // Agente Autônomo
+  runAgentBatch: (auditoriaId: number, config: { api_key?: string; provider?: string; base_url?: string; economico?: boolean }) =>
+    fetchAPI<{ job_id: string; status: string; message: string; pendentes: number }>(
+      `/api/agente/analisar-todos/${auditoriaId}`,
+      { method: "POST", body: JSON.stringify(config) }
+    ),
+
+  getAgentJobStatus: (jobId: string) =>
+    fetchAPI<AgentJob>(`/api/agente/status/${jobId}`),
+
+  getAgentJobResult: (jobId: string) =>
+    fetchAPI<{ job_id: string; status: string; resultado: any }>(`/api/agente/resultado/${jobId}`),
 };
 
 // ─── Utility Functions ───────────────────────────────────────────────────────

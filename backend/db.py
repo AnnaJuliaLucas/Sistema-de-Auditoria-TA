@@ -456,6 +456,21 @@ def _init_postgres():
                 fonte TEXT DEFAULT 'manual',
                 data_criacao TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS agent_jobs (
+                id TEXT PRIMARY KEY,
+                auditoria_id INTEGER,
+                tipo TEXT DEFAULT 'single',
+                pratica_num INTEGER,
+                subitem_idx INTEGER,
+                nota_self_assessment INTEGER,
+                status TEXT DEFAULT 'pending',
+                resultado TEXT,
+                erro TEXT,
+                progresso TEXT,
+                data_criacao TEXT,
+                data_conclusao TEXT
+            );
         """)
         conn.commit()
         cur.close()
@@ -1048,3 +1063,88 @@ def buscar_contexto_relevante(query: str, limit: int = 3) -> str:
         
         ctx = [r["conteudo"] for r in rows]
         return "\n\n---\n\n".join(ctx) if ctx else ""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AGENT JOBS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _ensure_agent_jobs_table():
+    """Create agent_jobs table if it doesn't exist (SQLite)."""
+    if USE_POSTGRES:
+        return  # Already handled in _init_postgres
+    try:
+        with get_db() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS agent_jobs (
+                    id TEXT PRIMARY KEY,
+                    auditoria_id INTEGER,
+                    tipo TEXT DEFAULT 'single',
+                    pratica_num INTEGER,
+                    subitem_idx INTEGER,
+                    nota_self_assessment INTEGER,
+                    status TEXT DEFAULT 'pending',
+                    resultado TEXT,
+                    erro TEXT,
+                    progresso TEXT,
+                    data_criacao TEXT,
+                    data_conclusao TEXT
+                )
+            """)
+            conn.commit()
+    except Exception as e:
+        log.warning(f"Could not create agent_jobs table: {e}")
+
+
+def criar_agent_job(job_id: str, auditoria_id: int, tipo: str = "single",
+                    pratica_num: int = None, subitem_idx: int = None,
+                    nota_self_assessment: int = None):
+    """Create a new agent job record."""
+    _ensure_agent_jobs_table()
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO agent_jobs (id, auditoria_id, tipo, pratica_num, subitem_idx,
+                                    nota_self_assessment, status, data_criacao)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+        """, (job_id, auditoria_id, tipo, pratica_num, subitem_idx,
+              nota_self_assessment, now))
+
+
+def atualizar_agent_job(job_id: str, status: str, resultado: str = None,
+                        erro: str = None, progresso: str = None):
+    """Update an agent job's status and result."""
+    now = datetime.now().isoformat()
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE agent_jobs
+            SET status=?, resultado=COALESCE(?, resultado),
+                erro=COALESCE(?, erro), progresso=COALESCE(?, progresso),
+                data_conclusao=CASE WHEN ?='done' OR ?='error' THEN ? ELSE data_conclusao END
+            WHERE id=?
+        """, (status, resultado, erro, progresso, status, status, now, job_id))
+
+
+def get_agent_job(job_id: str) -> Optional[dict]:
+    """Get a single agent job by ID."""
+    _ensure_agent_jobs_table()
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM agent_jobs WHERE id=?", (job_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def listar_agent_jobs(auditoria_id: int = None, limit: int = 50) -> list:
+    """List agent jobs, optionally filtered by audit."""
+    _ensure_agent_jobs_table()
+    with get_db() as conn:
+        if auditoria_id:
+            rows = conn.execute(
+                "SELECT * FROM agent_jobs WHERE auditoria_id=? ORDER BY data_criacao DESC LIMIT ?",
+                (auditoria_id, limit)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM agent_jobs ORDER BY data_criacao DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]

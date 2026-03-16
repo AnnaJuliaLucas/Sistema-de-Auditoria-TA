@@ -111,7 +111,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
 # Routers
 from backend.routers import (
     auditorias, avaliacoes, ia, dashboard, chat, diario, export, 
-    evidencias, upload, debug, dados, utils, config, auth
+    evidencias, upload, debug, dados, utils, config, auth, agente
 )
 app.include_router(auditorias.router)
 app.include_router(avaliacoes.router)
@@ -127,6 +127,7 @@ app.include_router(dados.router)
 app.include_router(utils.router)
 app.include_router(config.router)
 app.include_router(auth.router)
+app.include_router(agente.router)
 
 @app.get("/api/health")
 def health_check():

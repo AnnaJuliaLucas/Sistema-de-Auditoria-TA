@@ -20,6 +20,7 @@ export default function AuditarPage() {
     const [evidenceMap, setEvidenceMap] = useState<Record<string, any>>({});
     const [criteriaMap, setCriteriaMap] = useState<Record<string, any>>({});
     const [batchAnalyzing, setBatchAnalyzing] = useState<number | null>(null);
+    const [agentProgress, setAgentProgress] = useState<{ current: number; total: number; message?: string } | null>(null);
 
     const loadData = useCallback(async () => {
         try {
@@ -57,7 +58,7 @@ export default function AuditarPage() {
     }, [loadData]);
 
     async function handleAnalyzePractice(pratica: Pratica) {
-        
+        if (!auditoria) return;
         const pendentes = pratica.subitens.filter(s => s.decisao === 'pendente');
         if (pendentes.length === 0) {
             alert("Não há subitens pendentes nesta prática.");
@@ -91,35 +92,54 @@ export default function AuditarPage() {
     }
 
     async function handleRunGlobalAgent() {
-
         const pendentes = praticas.flatMap(p => p.subitens).filter(s => s.decisao === 'pendente');
         if (pendentes.length === 0) {
             alert("Não há subitens pendentes nesta auditoria.");
             return;
         }
 
-        if (!confirm(`🚀 Iniciar Agente Auditor?\n\nEle analisará automaticamente os ${pendentes.length} subitens restantes usando ${auditoria.ai_provider === 'ollama' ? 'o seu Cérebro Local (Ollama)' : 'a API da OpenAI'}.\n\nEsta operação pode levar alguns minutos.`)) return;
+        if (!confirm(`🚀 Iniciar Agente Auditor?\n\nEle analisará automaticamente os ${pendentes.length} subitens restantes de forma autônoma no servidor.\n\nVocê poderá acompanhar o progresso em tempo real.`)) return;
+        if (!auditoria) return;
 
         setBatchAnalyzing(-1); // -1 means global
+        setAgentProgress({ current: 0, total: pendentes.length, message: "Iniciando agente..." });
+        
         try {
-            for (const sub of pendentes) {
-                try {
-                    await api.analyzeSubitem(
-                        sub.id, 
-                        auditoria.openai_api_key || "", 
-                        auditoria.modo_analise === 'economico',
-                        auditoria.modo_analise,
-                        auditoria.ai_provider,
-                        auditoria.ai_base_url
-                    );
-                } catch (e) {
-                    console.error(`Erro ao analisar subitem ${sub.id}:`, e);
+            const { job_id } = await api.runAgentBatch(auditoriaId, {
+                provider: auditoria.ai_provider,
+                base_url: auditoria.ai_base_url,
+                economico: auditoria.modo_analise === 'economico'
+            });
+
+            // Polling loop
+            let finished = false;
+            while (!finished) {
+                await new Promise(r => setTimeout(r, 3000)); // Poll every 3s
+                
+                const job = await api.getAgentJobStatus(job_id);
+                
+                if (job.status === 'done') {
+                    finished = true;
+                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído!" });
+                } else if (job.status === 'error') {
+                    throw new Error(job.erro || "Erro na análise do agente");
+                } else if (job.status === 'running' && job.progresso) {
+                    setAgentProgress({
+                        current: job.progresso.current,
+                        total: job.progresso.total,
+                        message: `Analisando item ${job.progresso.current} de ${job.progresso.total}...`
+                    });
                 }
             }
+            
             await loadData();
             alert("✨ Missão cumprida! O Agente Auditor concluiu todas as análises pendentes.");
+        } catch (e: any) {
+            console.error("Erro no Agente Auditor:", e);
+            alert(`⚠️ Erro no Agente: ${e.message}`);
         } finally {
             setBatchAnalyzing(null);
+            setAgentProgress(null);
         }
     }
 
@@ -205,7 +225,10 @@ export default function AuditarPage() {
                                     {batchAnalyzing === -1 ? (
                                         <>
                                             <span className="animate-spin text-sm">🤖</span>
-                                            AGENTE TRABALHANDO...
+                                            {agentProgress 
+                                                ? `${Math.round((agentProgress.current / agentProgress.total) * 100)}% ANALISANDO...`
+                                                : "PREPARANDO AGENTE..."
+                                            }
                                         </>
                                     ) : (
                                         <>
