@@ -141,7 +141,9 @@ def analyze_single_subitem(
     resolved_provider = _resolve_provider(provider, audit)
     resolved_url = _resolve_base_url(base_url, audit)
 
-    if not resolved_key and resolved_provider != "ollama":
+    # Permitir chave vazia se for Ollama ou se houver uma Base URL custom (ex: LM Studio, vLLM local)
+    needs_key = resolved_provider != "ollama" and not resolved_url
+    if needs_key and not resolved_key:
         return {
             "erro": "API Key não configurada. Configure na auditoria ou globalmente.",
             "status": "error",

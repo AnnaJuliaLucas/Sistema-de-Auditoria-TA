@@ -507,7 +507,9 @@ class AuditAIAnalyzer:
     def _get_client(self):
         if self.provider == "openai":
             from openai import OpenAI
-            return OpenAI(api_key=self.api_key, base_url=self.base_url)
+            # Se não tem chave mas tem url customizada, envia chave dummy
+            key = self.api_key if self.api_key else ("dummy-key" if self.base_url else "")
+            return OpenAI(api_key=key, base_url=self.base_url)
         elif self.provider == "ollama":
             # Ollama costuma usar a interface da OpenAI ou uma biblioteca própria.
             # Vamos assumir compatibilidade com API OpenAI (via /v1) se base_url for provido.
