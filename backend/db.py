@@ -554,7 +554,8 @@ def deletar_auditoria(auditoria_id: int):
 
 def atualizar_config(auditoria_id: int, assessment_path: str,
                      evidence_folder: str, api_key: str, observacoes: str = None, 
-                     modo_analise: str = "completo", evidence_zip_url: str = ""):
+                     modo_analise: str = "completo", evidence_zip_url: str = "",
+                     ai_provider: str = "", ai_base_url: str = ""):
     with get_db() as conn:
         now = datetime.now().isoformat()
         if observacoes is not None:
@@ -562,17 +563,17 @@ def atualizar_config(auditoria_id: int, assessment_path: str,
                 UPDATE auditorias
                 SET assessment_file_path=?, evidence_folder_path=?,
                     openai_api_key=?, data_atualizacao=?, observacoes=?,
-                    modo_analise=?, evidence_zip_url=?
+                    modo_analise=?, evidence_zip_url=?, ai_provider=?, ai_base_url=?
                 WHERE id=?
-            """, (assessment_path, evidence_folder, api_key, now, observacoes, modo_analise, evidence_zip_url, auditoria_id))
+            """, (assessment_path, evidence_folder, api_key, now, observacoes, modo_analise, evidence_zip_url, ai_provider, ai_base_url, auditoria_id))
         else:
             conn.execute("""
                 UPDATE auditorias
                 SET assessment_file_path=?, evidence_folder_path=?,
                     openai_api_key=?, data_atualizacao=?, modo_analise=?,
-                    evidence_zip_url=?
+                    evidence_zip_url=?, ai_provider=?, ai_base_url=?
                 WHERE id=?
-            """, (assessment_path, evidence_folder, api_key, now, modo_analise, evidence_zip_url, auditoria_id))
+            """, (assessment_path, evidence_folder, api_key, now, modo_analise, evidence_zip_url, ai_provider, ai_base_url, auditoria_id))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

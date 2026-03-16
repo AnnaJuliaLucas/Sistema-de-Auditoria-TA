@@ -78,7 +78,10 @@ def update_config(auditoria_id: int, body: AuditoriaConfig, current_user: str = 
     atualizar_config(
         auditoria_id, body.assessment_file_path,
         body.evidence_folder_path, body.openai_api_key,
-        body.observacoes, body.modo_analise
+        body.observacoes, body.modo_analise,
+        evidence_zip_url="",
+        ai_provider=body.ai_provider,
+        ai_base_url=body.ai_base_url or ""
     )
     return {"ok": True}
 

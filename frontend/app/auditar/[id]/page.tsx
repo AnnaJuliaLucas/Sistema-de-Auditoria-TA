@@ -73,7 +73,7 @@ export default function AuditarPage() {
         try {
             const response = await api.runAgentSelection(auditoriaId, {
                 selecionados: pendentes.map(s => s.id),
-                provider: auditoria.ai_provider || "openai",
+                provider: auditoria.ai_provider || "",
                 base_url: auditoria.ai_base_url || "",
                 economico: auditoria.modo_analise === 'economico'
             });
@@ -149,7 +149,7 @@ export default function AuditarPage() {
         
         try {
             const response = await api.runAgentBatch(auditoriaId, {
-                provider: auditoria.ai_provider || "openai",
+                provider: auditoria.ai_provider || "",
                 base_url: auditoria.ai_base_url || "",
                 economico: auditoria.modo_analise === 'economico'
             });

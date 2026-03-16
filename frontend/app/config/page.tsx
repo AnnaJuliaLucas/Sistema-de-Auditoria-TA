@@ -28,7 +28,7 @@ export default function ConfigPage() {
         assessment_file_path: "", 
         evidence_folder_path: "", 
         openai_api_key: "", 
-        ai_provider: "openai" as "openai" | "ollama" | "gemini" | "anthropic" | "interno",
+        ai_provider: "" as "" | "openai" | "ollama" | "gemini" | "anthropic" | "interno",
         ai_base_url: "",
         observacoes: "",
         modo_analise: "completo" as "completo" | "economico"
@@ -70,7 +70,7 @@ export default function ConfigPage() {
                 assessment_file_path: aud.assessment_file_path || "",
                 evidence_folder_path: aud.evidence_folder_path || "",
                 openai_api_key: aud.openai_api_key || "",
-                ai_provider: aud.ai_provider || "openai",
+                ai_provider: (aud.ai_provider as any) || "",
                 ai_base_url: aud.ai_base_url || "",
                 observacoes: aud.observacoes || "",
                 modo_analise: (aud.modo_analise as "completo" | "economico") || "completo",
@@ -418,7 +418,7 @@ export default function ConfigPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                                    🔑 Chave API específica <span className="text-[10px] text-slate-500 font-normal ml-2">(Opcional — sobrepõe a global)</span>
+                                    🔑 Chave API específica <span className="text-[10px] text-slate-500 font-normal ml-2">(Opcional)</span>
                                 </label>
                                 <input 
                                     type="password" 
@@ -427,6 +427,35 @@ export default function ConfigPage() {
                                     className="w-full bg-slate-900/50 border border-slate-700 focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm transition-all"
                                     placeholder="Deixe vazio para usar a chave global" 
                                 />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">🤖 Provedor de IA (Específico)</label>
+                                    <select 
+                                        value={auditConfig.ai_provider}
+                                        onChange={e => setAuditConfig({ ...auditConfig, ai_provider: e.target.value as any })}
+                                        className="w-full bg-slate-900/50 border border-slate-700 focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm transition-all outline-none"
+                                    >
+                                        <option value="">Usar Configuração Global Padrão</option>
+                                        <option value="interno">Sistema Interno (Sem API Externas)</option>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="ollama">Ollama (Local)</option>
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="anthropic">Anthropic Claude</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">Endpoint / Base URL (Específico)</label>
+                                    <input 
+                                        type="text" 
+                                        value={auditConfig.ai_base_url} 
+                                        onChange={e => setAuditConfig({ ...auditConfig, ai_base_url: e.target.value })}
+                                        disabled={auditConfig.ai_provider === "" || auditConfig.ai_provider === "openai" || auditConfig.ai_provider === "interno"}
+                                        className="w-full bg-slate-900/50 border border-slate-700 focus:border-blue-500 rounded-xl px-4 py-3 text-white text-sm transition-all disabled:opacity-50"
+                                        placeholder="Deixe vazio para usar o Global" 
+                                    />
+                                </div>
                             </div>
 
                             <div>
