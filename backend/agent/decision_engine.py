@@ -141,8 +141,8 @@ def analyze_single_subitem(
     resolved_provider = _resolve_provider(provider, audit)
     resolved_url = _resolve_base_url(base_url, audit)
 
-    # Permitir chave vazia se for Ollama ou se houver uma Base URL custom (ex: LM Studio, vLLM local)
-    needs_key = resolved_provider != "ollama" and not resolved_url
+    # Permitir chave vazia se for Ollama, Agente Interno ou se houver uma Base URL custom
+    needs_key = resolved_provider not in ("ollama", "interno") and not resolved_url
     if needs_key and not resolved_key:
         return {
             "erro": "API Key não configurada. Configure na auditoria ou globalmente.",
@@ -168,12 +168,16 @@ def analyze_single_subitem(
     if modo_analise == "economico":
         economico = True
 
-    analyzer = AuditAIAnalyzer(
-        api_key=resolved_key,
-        economico=economico,
-        provider=resolved_provider,
-        base_url=resolved_url if resolved_url else None,
-    )
+    if resolved_provider == "interno":
+        from backend.agent.internal_analyzer import InternalHeuristicAnalyzer
+        analyzer = InternalHeuristicAnalyzer()
+    else:
+        analyzer = AuditAIAnalyzer(
+            api_key=resolved_key,
+            economico=economico,
+            provider=resolved_provider,
+            base_url=resolved_url if resolved_url else None,
+        )
 
     # 5. Run analysis
     nota_sa = avaliacao.get("nota_self_assessment", 0) or 0

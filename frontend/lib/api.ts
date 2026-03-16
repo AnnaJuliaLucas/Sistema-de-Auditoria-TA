@@ -65,7 +65,7 @@ export interface Auditoria {
   assessment_file_path?: string;
   evidence_folder_path?: string;
   openai_api_key?: string;
-  ai_provider?: "openai" | "ollama" | "gemini" | "anthropic";
+  ai_provider?: "openai" | "ollama" | "gemini" | "anthropic" | "interno";
   ai_base_url?: string;
   observacoes?: string;
   modo_analise: "completo" | "economico";

@@ -28,7 +28,7 @@ export default function ConfigPage() {
         assessment_file_path: "", 
         evidence_folder_path: "", 
         openai_api_key: "", 
-        ai_provider: "openai" as "openai" | "ollama" | "gemini" | "anthropic",
+        ai_provider: "openai" as "openai" | "ollama" | "gemini" | "anthropic" | "interno",
         ai_base_url: "",
         observacoes: "",
         modo_analise: "completo" as "completo" | "economico"
@@ -194,6 +194,7 @@ export default function ConfigPage() {
                                         <option value="ollama">Ollama (Local)</option>
                                         <option value="gemini">Google Gemini</option>
                                         <option value="anthropic">Anthropic Claude</option>
+                                        <option value="interno">Sistema Interno (Sem API Externas)</option>
                                     </select>
                                 </div>
                                 <div>
@@ -215,7 +216,7 @@ export default function ConfigPage() {
                                 </div>
                             </div>
 
-                            {globalConfig.ai_provider !== "openai" && (
+                            {globalConfig.ai_provider !== "openai" && globalConfig.ai_provider !== "interno" && (
                                 <div>
                                     <label className="block text-sm font-medium text-slate-300 mb-2">Endpoint / Base URL (Opcional)</label>
                                     <input 
