@@ -570,6 +570,7 @@ def atualizar_config(auditoria_id: int, assessment_path: str,
                      evidence_folder: str, api_key: str, observacoes: str = None, 
                      modo_analise: str = "completo", evidence_zip_url: str = "",
                      ai_provider: str = "", ai_base_url: str = ""):
+    log.info(f"DB: Saving config for audit {auditoria_id}: provider='{ai_provider}', has_key={bool(api_key)}")
     with get_db() as conn:
         now = datetime.now().isoformat()
         if observacoes is not None:

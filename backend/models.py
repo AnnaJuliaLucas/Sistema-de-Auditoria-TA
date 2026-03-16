@@ -17,6 +17,9 @@ class AuditoriaOut(BaseModel):
     data_atualizacao: Optional[str] = None
     assessment_file_path: Optional[str] = None
     evidence_folder_path: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    ai_provider: Optional[str] = None
+    ai_base_url: Optional[str] = None
     observacoes: Optional[str] = None
     total_subitens: int = 0
     subitens_avaliados: int = 0
@@ -29,7 +32,7 @@ class AuditoriaConfig(BaseModel):
     assessment_file_path: str = ""
     evidence_folder_path: str = ""
     openai_api_key: str = ""
-    ai_provider: str = "openai"
+    ai_provider: str = ""
     ai_base_url: Optional[str] = None
     observacoes: Optional[str] = None
     modo_analise: str = "completo"
