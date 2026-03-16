@@ -32,7 +32,7 @@ _executor = ThreadPoolExecutor(max_workers=2)
 class AgentAnalyzeRequest(BaseModel):
     api_key: str = ""
     provider: str = ""
-    base_url: str = ""
+    base_url: Optional[str] = None
     economico: bool = False
 
 class AgentSelectionRequest(AgentAnalyzeRequest):
