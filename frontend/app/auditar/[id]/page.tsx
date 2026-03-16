@@ -59,20 +59,24 @@ export default function AuditarPage() {
 
     async function handleAnalyzePractice(pratica: Pratica) {
         if (!auditoria) return;
-        const pendentes = pratica.subitens.filter(s => s.decisao === 'pendente');
-        if (pendentes.length === 0) {
-            alert("Não há subitens pendentes nesta prática.");
+        const subitensParaAnalisar = pratica.subitens; 
+        if (subitensParaAnalisar.length === 0) {
+            alert("Não há subitens nesta prática.");
             return;
         }
 
-        if (!confirm(`Deseja analisar os ${pendentes.length} subitens desta prática com IA?`)) return;
+        const msgOriginal = `Deseja analisar os ${subitensParaAnalisar.length} subitens desta prática com IA?`;
+        const msgReanalise = `Deseja RE-ANALISAR os ${subitensParaAnalisar.length} subitens desta prática com IA?\n(As notas e comentários da IA serão atualizados)`;
+        
+        const temJaAnalisados = subitensParaAnalisar.some(s => s.decisao !== 'pendente');
+        if (!confirm(temJaAnalisados ? msgReanalise : msgOriginal)) return;
 
         setBatchAnalyzing(pratica.pratica_num);
-        setAgentProgress({ current: 0, total: pendentes.length, message: `Iniciando análise da prática ${pratica.pratica_num}...` });
+        setAgentProgress({ current: 0, total: subitensParaAnalisar.length, message: `Iniciando análise da prática ${pratica.pratica_num}...` });
 
         try {
             const response = await api.runAgentSelection(auditoriaId, {
-                selecionados: pendentes.map(s => s.id),
+                selecionados: subitensParaAnalisar.map(s => s.id),
                 provider: auditoria.ai_provider || "",
                 base_url: auditoria.ai_base_url || "",
                 economico: auditoria.modo_analise === 'economico'
@@ -98,7 +102,7 @@ export default function AuditarPage() {
                 
                 if (job.status === 'done') {
                     finished = true;
-                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Finalizando e verificando resultados..." });
+                    setAgentProgress({ current: subitensParaAnalisar.length, total: subitensParaAnalisar.length, message: "Finalizando e verificando resultados..." });
                     
                     try {
                         const resultResponse = await api.getAgentJobResult(job_id);
@@ -135,17 +139,22 @@ export default function AuditarPage() {
     }
 
     async function handleRunGlobalAgent() {
-        const pendentes = praticas.flatMap(p => p.subitens).filter(s => s.decisao === 'pendente');
-        if (pendentes.length === 0) {
-            alert("Não há subitens pendentes nesta auditoria.");
+        const subitensParaAnalisar = praticas.flatMap(p => p.subitens);
+        if (subitensParaAnalisar.length === 0) {
+            alert("Não há subitens nesta auditoria.");
             return;
         }
 
-        if (!confirm(`🚀 Iniciar Agente Auditor?\n\nEle analisará automaticamente os ${pendentes.length} subitens restantes de forma autônoma no servidor.\n\nVocê poderá acompanhar o progresso em tempo real.`)) return;
+        const temJaAnalisados = subitensParaAnalisar.some(s => s.decisao !== 'pendente');
+        const msg = temJaAnalisados 
+            ? `🚀 RE-INICIAR Agente Auditor?\n\nEle re-analisará TODOS os ${subitensParaAnalisar.length} subitens da auditoria.\n\nContinuar?`
+            : `🚀 Iniciar Agente Auditor?\n\nEle analisará automaticamente os ${subitensParaAnalisar.length} subitens de forma autônoma no servidor.\n\nContinuar?`;
+
+        if (!confirm(msg)) return;
         if (!auditoria) return;
 
         setBatchAnalyzing(-1); // -1 means global
-        setAgentProgress({ current: 0, total: pendentes.length, message: "Iniciando agente..." });
+        setAgentProgress({ current: 0, total: subitensParaAnalisar.length, message: "Iniciando agente..." });
         
         try {
             const response = await api.runAgentBatch(auditoriaId, {
@@ -174,7 +183,7 @@ export default function AuditarPage() {
                 
                 if (job.status === 'done') {
                     finished = true;
-                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Finalizando e verificando resultados..." });
+                    setAgentProgress({ current: subitensParaAnalisar.length, total: subitensParaAnalisar.length, message: "Finalizando e verificando resultados..." });
                     
                     try {
                         const resultResponse = await api.getAgentJobResult(job_id);
@@ -184,7 +193,7 @@ export default function AuditarPage() {
                             const firstErr = finalResult.detalhes_erros?.[0]?.erro || "Erro desconhecido";
                             throw new Error(`A análise terminou com ${finalResult.erros} erro(s). Primeiro erro: ${firstErr}`);
                         } else {
-                            setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído com sucesso!" });
+                            setAgentProgress({ current: subitensParaAnalisar.length, total: subitensParaAnalisar.length, message: "Concluído com sucesso!" });
                             alert("✨ Missão cumprida! O Agente Auditor concluiu todas as análises pendentes com sucesso.");
                         }
                     } catch (resultErr: any) {
@@ -404,7 +413,7 @@ export default function AuditarPage() {
                                         <span className="text-sm text-slate-400">
                                             {pratica.avaliados}/{pratica.total}
                                         </span>
-                                        {pratica.pendentes > 0 && (
+                                        {pratica.total > 0 && (
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleAnalyzePractice(pratica); }}
                                                 disabled={batchAnalyzing !== null}
