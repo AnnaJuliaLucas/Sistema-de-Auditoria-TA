@@ -1,4 +1,4 @@
-"""
+r"""
 db.py — Database connection layer for FastAPI backend.
 Supports BOTH SQLite (local dev) and PostgreSQL (Docker/production).
 

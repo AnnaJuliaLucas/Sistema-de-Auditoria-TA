@@ -13,25 +13,37 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-# Configure logging to both console and file in volume
-log_path = "/app/data/app.log" if os.environ.get("RAILWAY_ENVIRONMENT") else "app.log"
+# Configure logging
+RAILWAY_VOL = os.environ.get("RAILWAY_ENVIRONMENT")
+log_path = Path("/app/data/app.log") if RAILWAY_VOL else Path("app.log")
+
+try:
+    if RAILWAY_VOL:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    file_handler = logging.FileHandler(str(log_path), encoding='utf-8')
+except (OSError, PermissionError):
+    # Fallback to local file if volume fails
+    log_path = Path("app.log")
+    file_handler = logging.FileHandler(str(log_path), encoding='utf-8')
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(log_path)
+        file_handler
     ]
 )
 log = logging.getLogger("auditoria_api")
-log.info(f"📝 Logging to: {log_path}")
+log.info(f"Logging initialized at: {log_path}")
 
 # Railway specific: if we have a volume, use it for temp files to avoid [Errno 28] No space left on device
 if os.environ.get("RAILWAY_ENVIRONMENT"):
     volume_tmp = Path("/app/data/tmp")
     volume_tmp.mkdir(parents=True, exist_ok=True)
     os.environ["TMPDIR"] = str(volume_tmp)
-    log.info(f"💾 Using volume for temp files: {volume_tmp}")
+    log.info(f"Using volume for temp files: {volume_tmp}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,9 +58,9 @@ async def lifespan(app: FastAPI):
             # NOTE: We no longer purge /app/data/uploads here because the disk was increased to 5GB.
             # Persistence is now safe.
         except Exception as e:
-            print(f"Startup clean error: {e}")
-
-    log.info("🚀 Iniciando Sistema de Auditoria TA — Backend API")
+            log.error(f"Startup clean error: {e}")
+    
+    log.info("Starting Sistema de Auditoria TA - Backend API")
     try:
         from pathlib import Path
         ev_file = Path("backend/routers/evidencias.py")
@@ -62,11 +74,11 @@ async def lifespan(app: FastAPI):
         
         from backend.db import init_db
         init_db()
-        log.info("✅ Banco de dados inicializado")
+        log.info("Database initialized")
     except Exception as e:
-        log.error(f"❌ FALHA NA INICIALIZAÇÃO DO BANCO: {e}")
+        log.error(f"DATABASE INITIALIZATION FAILURE: {e}")
     yield
-    log.info("🛑 Backend encerrado")
+    log.info("Backend stopped")
 
 app = FastAPI(
     title="Sistema de Auditoria TA - Backend API",
