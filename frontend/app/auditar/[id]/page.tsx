@@ -68,26 +68,44 @@ export default function AuditarPage() {
         if (!confirm(`Deseja analisar os ${pendentes.length} subitens desta prática com IA?`)) return;
 
         setBatchAnalyzing(pratica.pratica_num);
+        setAgentProgress({ current: 0, total: pendentes.length, message: `Iniciando análise da prática ${pratica.pratica_num}...` });
+
         try {
-            // Process sequentially to avoid rate limits or UI clutter, 
-            // but we could also do small chunks
-            for (const sub of pendentes) {
-                try {
-                    await api.analyzeSubitem(
-                        sub.id, 
-                        auditoria.openai_api_key || "", 
-                        auditoria.modo_analise === 'economico',
-                        auditoria.modo_analise,
-                        auditoria.ai_provider,
-                        auditoria.ai_base_url
-                    );
-                } catch (e) {
-                    console.error(`Erro ao analisar subitem ${sub.id}:`, e);
+            const { job_id } = await api.runAgentSelection(auditoriaId, {
+                selecionados: pendentes.map(s => s.id),
+                provider: auditoria.ai_provider,
+                base_url: auditoria.ai_base_url,
+                economico: auditoria.modo_analise === 'economico'
+            });
+
+            // Polling loop
+            let finished = false;
+            while (!finished) {
+                await new Promise(r => setTimeout(r, 2000)); // Poll every 2s for specific practice
+                
+                const job = await api.getAgentJobStatus(job_id);
+                
+                if (job.status === 'done') {
+                    finished = true;
+                    setAgentProgress({ current: pendentes.length, total: pendentes.length, message: "Concluído!" });
+                } else if (job.status === 'error') {
+                    throw new Error(job.erro || "Erro na análise do agente");
+                } else if (job.status === 'running' && job.progresso) {
+                    setAgentProgress({
+                        current: job.progresso.current,
+                        total: job.progresso.total,
+                        message: `Analisando ${job.progresso.current}/${job.progresso.total}...`
+                    });
                 }
             }
+            
             await loadData();
+        } catch (e: any) {
+            console.error(`Erro ao analisar prática ${pratica.pratica_num}:`, e);
+            alert(`⚠️ Erro na análise da prática: ${e.message}`);
         } finally {
             setBatchAnalyzing(null);
+            setAgentProgress(null);
         }
     }
 

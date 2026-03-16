@@ -35,6 +35,9 @@ class AgentAnalyzeRequest(BaseModel):
     base_url: str = ""
     economico: bool = False
 
+class AgentSelectionRequest(AgentAnalyzeRequest):
+    selecionados: List[int]
+
 
 # ─── In-memory job store (backed by DB for persistence) ───────────────────────
 
@@ -95,6 +98,38 @@ def _run_single_analysis(job_id: str, audit: dict, avaliacao: dict,
             _update_job(job_id, "done", resultado=result)
     except Exception as e:
         log.error(f"Agent job {job_id} failed: {traceback.format_exc()}")
+        _update_job(job_id, "error", erro=str(e))
+
+
+def _run_selection_analysis(job_id: str, audit: dict, avaliacoes: list,
+                            selected_ids: list, api_key: str, provider: str,
+                            base_url: str, economico: bool):
+    """Background worker for custom selection analysis."""
+    from backend.agent.decision_engine import analyze_selection
+
+    _update_job(job_id, "running")
+    try:
+        def on_progress(current, total, av_id, result):
+            _update_job(job_id, "running", progresso={
+                "current": current,
+                "total": total,
+                "avaliacao_id": av_id,
+                "ultima_decisao": result.get("decisao") if result else None,
+            })
+
+        result = analyze_selection(
+            audit=audit,
+            avaliacoes=avaliacoes,
+            selected_ids=selected_ids,
+            api_key=api_key,
+            provider=provider,
+            base_url=base_url,
+            economico=economico,
+            on_progress=on_progress,
+        )
+        _update_job(job_id, "done", resultado=result)
+    except Exception as e:
+        log.error(f"Agent selection job {job_id} failed: {traceback.format_exc()}")
         _update_job(job_id, "error", erro=str(e))
 
 
@@ -256,6 +291,64 @@ def analisar_todos(auditoria_id: int,
         "message": f"Análise em lote iniciada: {len(pending)} subitens pendentes",
         "total_subitens": len(avaliacoes),
         "pendentes": len(pending),
+    }
+
+
+@router.post("/analisar-selecao/{auditoria_id}")
+def analisar_selecao(auditoria_id: int, body: AgentSelectionRequest):
+    """
+    Starts an autonomous analysis of a SPECIFIC LIST of subitems.
+    """
+    from backend.db import get_auditoria, carregar_avaliacoes, criar_agent_job
+
+    audit = get_auditoria(auditoria_id)
+    if not audit:
+        raise HTTPException(404, "Auditoria não encontrada")
+
+    if not body.selecionados:
+        raise HTTPException(400, "Nenhum subitem selecionado")
+
+    avaliacoes = carregar_avaliacoes(auditoria_id)
+    avaliacoes_map = {av["id"]: av for av in avaliacoes}
+    
+    confirmados = [av_id for av_id in body.selecionados if av_id in avaliacoes_map]
+    
+    if not confirmados:
+        raise HTTPException(400, "Nenhum dos subitens selecionados foi encontrado nesta auditoria")
+
+    # Create selection job
+    job_id = f"sel_{uuid.uuid4().hex[:8]}"
+    now = datetime.now().isoformat()
+
+    job_data = {
+        "id": job_id,
+        "auditoria_id": auditoria_id,
+        "tipo": "batch",
+        "status": "pending",
+        "data_criacao": now,
+        "total_pendentes": len(confirmados),
+    }
+    _jobs_cache[job_id] = job_data
+
+    try:
+        criar_agent_job(
+            job_id=job_id,
+            auditoria_id=auditoria_id,
+            tipo="batch",
+        )
+    except Exception as e:
+        log.warning(f"Agent: Could not persist selection job to DB: {e}")
+
+    # Submit to thread pool
+    _executor.submit(
+        _run_selection_analysis, job_id, audit, avaliacoes, confirmados,
+        body.api_key, body.provider, body.base_url, body.economico
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "message": f"Análise de seleção iniciada: {len(confirmados)} subitens",
     }
 
 

@@ -273,3 +273,70 @@ def analyze_all_pending(
         "resultados": results,
         "detalhes_erros": errors,
     }
+
+def analyze_selection(
+    audit: dict,
+    avaliacoes: List[dict],
+    selected_ids: List[int],
+    api_key: str = "",
+    provider: str = "",
+    base_url: str = "",
+    economico: bool = False,
+    on_progress=None,
+) -> Dict[str, Any]:
+    """
+    Analyze a specific selection of subitems.
+    """
+    selection = [
+        av for av in avaliacoes
+        if av["id"] in selected_ids
+    ]
+    
+    total = len(selection)
+    results = []
+    errors = []
+
+    for idx, av in enumerate(selection, 1):
+        try:
+            if on_progress:
+                on_progress(idx, total, av["id"], None)
+
+            result = analyze_single_subitem(
+                audit=audit,
+                avaliacao=av,
+                api_key=api_key,
+                provider=provider,
+                base_url=base_url,
+                economico=economico,
+            )
+
+            if result.get("status") == "error":
+                errors.append({"avaliacao_id": av["id"], "erro": result.get("erro", "")})
+            else:
+                results.append({
+                    "avaliacao_id": av["id"],
+                    "pratica_num": av["pratica_num"],
+                    "subitem_idx": av["subitem_idx"],
+                    "decisao": result.get("decisao"),
+                    "nota_sugerida": result.get("nota_sugerida"),
+                    "duracao_segundos": result.get("duracao_segundos"),
+                })
+
+            if on_progress:
+                on_progress(idx, total, av["id"], result)
+
+        except Exception as e:
+            log.error(f"Agent: Error analyzing avaliacao {av['id']}: {e}")
+            errors.append({
+                "avaliacao_id": av["id"],
+                "erro": str(e),
+                "trace": traceback.format_exc()[-300:],
+            })
+
+    return {
+        "total_selecionados": total,
+        "analisados": len(results),
+        "erros": len(errors),
+        "resultados": results,
+        "detalhes_erros": errors,
+    }

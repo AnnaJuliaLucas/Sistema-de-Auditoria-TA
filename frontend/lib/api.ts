@@ -278,6 +278,12 @@ export const api = {
       { method: "POST", body: JSON.stringify(config) }
     ),
 
+  runAgentSelection: (auditoriaId: number, config: { selecionados: number[]; api_key?: string; provider?: string; base_url?: string; economico?: boolean }) =>
+    fetchAPI<{ job_id: string; status: string; message: string }>(
+      `/api/agente/analisar-selecao/${auditoriaId}`,
+      { method: "POST", body: JSON.stringify(config) }
+    ),
+
   getAgentJobStatus: (jobId: string) =>
     fetchAPI<AgentJob>(`/api/agente/status/${jobId}`),
 
