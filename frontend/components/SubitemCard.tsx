@@ -491,7 +491,7 @@ export default function SubitemCard({
 
                                                                         {docPreview.type === "word" && (
                                                                             <div className="p-6 max-h-[600px] overflow-auto bg-white/95 text-slate-900">
-                                                                                {(docPreview.paragraphs || []).map((p, pi) => (
+                                                                                {(docPreview.paragraphs || []).map((p: any, pi: number) => (
                                                                                     <p key={pi} className="mb-3 text-sm leading-relaxed">{p}</p>
                                                                                 ))}
                                                                             </div>
