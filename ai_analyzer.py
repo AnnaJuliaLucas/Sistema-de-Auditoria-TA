@@ -402,6 +402,10 @@ def build_audit_prompt(
     evidencia_desc = evidencia_desc_oficial or evidencia_descricao_planilha
     niveis_txt     = _montar_niveis_texto(niveis_oficiais, niveis_planilha)
 
+    # Preparar indícios do expert para evitar backslash em f-string (compatibilidade Python < 3.12)
+    fortalece_txt = ('- ' + '\n- '.join(fortalece)) if fortalece else 'Nenhum indício específico.'
+    enfraquece_txt = ('- ' + '\n- '.join(enfraquece)) if enfraquece else 'Nenhum indício específico.'
+
     # ── Formatar evidências textuais ──────────────────────────────
     if evidencias_textuais:
         ev_partes = []
@@ -458,10 +462,10 @@ NÍVEIS DE MATURIDADE (Critério de Pontuação):
 
 💡 INDÍCIOS DO EXPERT (Use para decidir):
 🟢 FORTALECE A EVIDÊNCIA:
-{'- ' + '\n- '.join(fortalece) if fortalece else 'Nenhum indício específico.'}
+{fortalece_txt}
 
 🔴 ENFRAQUECE A EVIDÊNCIA:
-{'- ' + '\n- '.join(enfraquece) if enfraquece else 'Nenhum indício específico.'}
+{enfraquece_txt}
 
 ⚠️ ARMADILHAS COMUNS:
 {armadilhas if armadilhas else 'Não mapeadas.'}
