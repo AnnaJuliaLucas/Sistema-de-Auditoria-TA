@@ -74,12 +74,16 @@ def analisar_subitem(avaliacao_id: int, body: IAAnalyzeRequest):
         if body.modo_analise:
             economico = (body.modo_analise == "economico")
         
-        analyzer = AuditAIAnalyzer(
-            api_key=api_key, 
-            economico=economico,
-            provider=provider, 
-            base_url=base_url if base_url else None
-        )
+        if provider == "interno":
+            from backend.agent.internal_analyzer import InternalHeuristicAnalyzer
+            analyzer = InternalHeuristicAnalyzer()
+        else:
+            analyzer = AuditAIAnalyzer(
+                api_key=api_key, 
+                economico=economico,
+                provider=provider, 
+                base_url=base_url if base_url else None
+            )
         
         # 5. Executar Análise
         print(f"DEBUG: Chamando analyzer.analyze_subitem (provider={provider})...")

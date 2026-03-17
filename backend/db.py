@@ -1092,16 +1092,20 @@ def buscar_contexto_relevante(query: str, limit: int = 3) -> str:
     Busca simplificada (por palavra-chave no título) para compor contexto.
     Em uma versão futura, isso usaria embeddings (Vector Search).
     """
-    with get_db() as conn:
-        # Busca simples por LIKE no título ou conteúdo
-        rows = conn.execute("""
-            SELECT conteudo FROM knowledge_base
-            WHERE titulo LIKE ? OR conteudo LIKE ?
-            LIMIT ?
-        """, (f"%{query}%", f"%{query}%", limit)).fetchall()
-        
-        ctx = [str(r["conteudo"]) for r in rows if r["conteudo"] is not None]
-        return "\n\n---\n\n".join(ctx) if ctx else ""
+    try:
+        with get_db() as conn:
+            # Busca simples por LIKE no título ou conteúdo
+            rows = conn.execute("""
+                SELECT conteudo FROM knowledge_base
+                WHERE titulo LIKE ? OR conteudo LIKE ?
+                LIMIT ?
+            """, (f"%{query}%", f"%{query}%", limit)).fetchall()
+            
+            ctx = [str(r["conteudo"]) for r in rows if r["conteudo"] is not None]
+            return "\n\n---\n\n".join(ctx) if ctx else ""
+    except Exception as e:
+        log.error(f"Erro ao buscar contexto RAG para '{query}': {e}")
+        return ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────

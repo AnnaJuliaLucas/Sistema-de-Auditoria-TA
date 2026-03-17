@@ -108,9 +108,12 @@ class InternalHeuristicAnalyzer:
         # 4.5. Busca por Decisões Passadas (Aprendizado)
         decisoes_passadas = ""
         if _RECURSOS_COMPLETOS:
-            decisoes_hist = buscar_contexto_relevante(f"REF_DECISAO: Prática {pratica_num} Item {subitem_idx}", limit=2)
-            if decisoes_hist:
-                decisoes_passadas = f"\n**Experiência do Auditor (Histórico):**\n{decisoes_hist}\n"
+            try:
+                decisoes_hist = buscar_contexto_relevante(f"REF_DECISAO: Prática {pratica_num} Item {subitem_idx}", limit=2)
+                if decisoes_hist:
+                    decisoes_passadas = f"\n**Experiência do Auditor (Histórico):**\n{decisoes_hist}\n"
+            except Exception as e:
+                print(f"Erro ao buscar histórico de decisões: {e}")
 
         # 5. Lógica de Decisão Híbrida
         decisao = "insuficiente"
