@@ -661,22 +661,22 @@ def salvar_decisao(avaliacao_id: int, decisao: str, nota_final: Optional[int],
                 (now, row["auditoria_id"])
             )
             
-            # --- AI LEARNING CAPTURE ---
-            # If the human correction differs from the AI suggestion, save it as a "learning"
-            ia_decisao = row.get("ia_decisao")
-            if ia_status == "ok" and ia_decisao and ia_decisao != decisao:
-                # Get more context for the learning record
-                motivo = f"IA sugeriu '{ia_decisao}', Humano definiu '{decisao}'"
-                if descricao_nc:
-                    motivo += f" | Justificativa: {descricao_nc}"
+            # --- AI LEARNING INDEXING ---
+            # Indexamos a decisão do auditor na base de conhecimento para que o agente consulte no futuro.
+            if decisao != 'pendente':
+                titulo_conhecimento = f"REF_DECISAO: Prática {row['pratica_num']} Item {row['subitem_idx']}"
+                conteudo_conhecimento = f"Decisão Auditor: {decisao}\nNota Final: {nota_final}\nNC: {descricao_nc}\nComentários: {comentarios}"
                 
-                # We'll call salvation_aprendizado internally if we had its definition, 
-                # but to avoid circularity or complex flow, we do it here or via a helper.
+                # Evitar duplicidade exata no conhecimento recente para o mesmo item
                 conn.execute("""
-                    INSERT INTO aprendizados (auditoria_id, pratica_num, subitem_idx, categoria, descricao, exemplo, data_criacao)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (row["auditoria_id"], row["pratica_num"], row["subitem_idx"], 
-                      "correcao_humana", motivo, comentarios, now))
+                    DELETE FROM knowledge_base 
+                    WHERE titulo = ? AND tag = 'referencia_auditor'
+                """, (titulo_conhecimento,))
+                
+                conn.execute("""
+                    INSERT INTO knowledge_base (titulo, conteudo, tag, fonte, data_criacao)
+                    VALUES (?, ?, 'referencia_auditor', 'feedback_humano', ?)
+                """, (titulo_conhecimento, conteudo_conhecimento, now))
 
 
 def salvar_analise_ia(avaliacao_id: int, result: dict, nota_sa: int):
