@@ -130,43 +130,52 @@ class InternalHeuristicAnalyzer:
             if not tem_data_recente:
                 pontos_faltantes.append("As evidências parecem ser antigas ou não datadas.")
 
-        # 6. Construção da Justificativa e NC em 3 Pontos
+        # 6. Construção da Justificativa Universal em 3 Pontos (Padrão Ouro)
         rag_combined = (contexto_rag + decisoes_passadas).strip()
         
-        # Template de NC em 3 Pontos (Padrão Ouro solicitado pelo usuário)
-        nc_padrão = ""
-        if decisao != "permanece":
+        # Ponto 1: Veredito / Problema Detectado
+        if decisao == "permanece":
+            ponto_1 = "1. Conformidade Detectada: As evidências enviadas são consistentes com o nível de maturidade declarado e apresentam termos técnicos e datas compatíveis."
+        else:
             ponto_1 = "1. Problema Detectado: "
             if tem_erro_job:
-                ponto_1 += "Presença de erros/falhas detectada nos logs de Job ou backup, indicando que a rotina não é resiliente."
+                ponto_1 += "Presença de erros/falhas detectada nos logs de Job ou backup (VersionDog/Octoplant), indicando que a rotina não é resiliente."
             elif not tem_data_recente:
-                ponto_1 += "Ausência de evidências temporais recentes. Os documentos apresentados parecem ser antigos ou não datados."
+                ponto_1 += "Ausência de evidências temporais recentes. Documentos desatualizados ou sem data de referência clara."
             else:
-                ponto_1 += "Desconexão técnica entre as evidências enviadas e os requisitos de maturidade do item."
+                ponto_1 += "Gaps qualitativos na comprovação. A documentação não demonstra plenamente a execução sistêmica conforme exigido."
 
-            ponto_2 = "\n2. Evidências Incompletas: "
+        # Ponto 2: Análise de Evidências / Incompleto
+        ponto_2 = "\n2. Análise de Evidências: "
+        if decisao == "permanece":
+            ponto_2 += f"Foram identificados {total_files} arquivos técnicos, incluindo referências a {', '.join(matches[:2]) if matches else 'termos do critério'}. A amostragem é suficiente para validar a nota {nota_self_assessment}."
+        else:
             if incompleto_evidencia:
-                ponto_2 += "Os arquivos anexados mostram apenas parte da rotina (ex: apenas pastas ou registros parciais). Falta demonstrar a cobertura total dos equipamentos citados no critério."
+                ponto_2 += f"Amostragem insuficiente ({total_files} arquivos). Falta comprovar a cobertura de todos os equipamentos citados no critério (PLCs, Supervisórios, etc)."
             else:
-                ponto_2 += "Faltam correlações claras (prints de sistemas, ordens SAP encerradas) que comprovem a execução sistêmica."
+                ponto_2 += "Embora existam arquivos, faltam registros sistêmicos (logs, ordens SAP encerradas) que interliguem o processo físico ao digital."
 
-            ponto_3 = f"\n3. Conformidade com Critérios: Para alcançar o nível de conformidade adequado, é necessário demonstrar que {niveis_oficiais.get(3, 'a rotina é executada de forma plena e automática')}. {regras_especiais or 'Conforme diretrizes do PO.AUT.002.'}"
-            nc_padrão = f"{ponto_1}\n{ponto_2}\n{ponto_3}"
+        # Ponto 3: Diretriz de Conformidade
+        ponto_3 = f"\n3. Conformidade com Critérios: De acordo com o critério oficial para Nível 3/4, {niveis_oficiais.get(3, 'a rotina deve ser plena e documentalmente comprovada')}. {regras_especiais or 'Referência normativa: PO.AUT.002.'}"
+        
+        nc_estruturada = f"{ponto_1}\n{ponto_2}\n{ponto_3}"
 
         justificativa = (
             f"### PARECER TÉCNICO DE AUDITORIA\n\n"
             f"**Critério Oficial:** {criterio.get('descricao', subitem_nome)}\n"
             f"**Histórico e Contexto:** {rag_combined or 'Novo subitem sem histórico prévio.'}\n\n"
-            f"**Análise de Evidências:**\n"
+            f"**RELATÓRIO DE CONFORMIDADE (PADRÃO OURO):**\n"
+            f"{nc_estruturada}\n\n"
+            f"**Análise de Metadados:**\n"
             f"- Arquivos: {total_files} ({len(evidencias_textuais)} docs, {len(image_paths)} imagens)\n"
-            f"- Aderência Normativa: {match_ratio*100:.0f}%\n"
-            f"- Validação Temporal: {'OK' if tem_data_recente else '⚠️ Pendente/Antiga'}\n"
-            f"- Integridade de Jobs: {'❌ Falhas Detectadas' if tem_erro_job else '✅ Sem erros aparentes'}\n\n"
-            f"**Conclusão:** {'A nota do Self-Assessment é validada pelo motor de regras.' if decisao == 'permanece' else 'Rebaixamento sugerido devido a gaps qualitativos na evidência.'}"
+            f"- Aderência Técnica: {match_ratio*100:.0f}%\n"
+            f"- Validação Temporal: {'OK (2025/2026)' if tem_data_recente else '⚠️ Pendente/Antiga'}\n"
+            f"- Integridade de Jobs: {'❌ Falhas Detectadas (VersionDog)' if tem_erro_job else '✅ Sem erros aparentes'}\n\n"
+            f"**Conclusão do Consultor:** {'A nota do Self-Assessment é validada pelo motor de regras.' if decisao == 'permanece' else 'Rebaixamento sugerido devido a gaps na qualidade técnica da comprovação.'}"
         )
 
         return self._format_result(decisao, nota_sugerida, confianca, pontos_atendidos, pontos_faltantes, 
-                                 nc_padrão, relatorio_cobertura, justificativa, total_files, len(image_paths), len(evidencias_textuais))
+                                 nc_estruturada, relatorio_cobertura, justificativa, total_files, len(image_paths), len(evidencias_textuais))
 
     def _format_result(self, decisao, nota, confianca, atendidos, faltantes, nc, cobertura, detalhe, files=0, imgs=0, docs=0):
         # Limitar detalhe e NC para não estourar campos se necessário, mas manter estrutura
