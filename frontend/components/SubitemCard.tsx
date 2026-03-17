@@ -62,6 +62,7 @@ export default function SubitemCard({
     const [analyzing, setAnalyzing] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const [showChat, setShowChat] = useState(false);
+    const [uploading, setUploading] = useState(false);
 
     // Evidence & Criteria state
     const [evidence, setEvidence] = useState<EvidenceData | null>(initialEvidence || null);
@@ -191,6 +192,43 @@ export default function SubitemCard({
         }
     }
 
+    async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            await api.uploadEvidenciaSubitem(av.auditoria_id, av.pratica_num, av.subitem_idx, file);
+            showToast("✅ Arquivo enviado com sucesso!");
+            
+            // Refresh evidence list
+            const res = await fetch(`${API_BASE}/api/evidencias/${av.auditoria_id}/${av.pratica_num}/${av.subitem_idx}`);
+            const data = await res.json();
+            setEvidence(data);
+        } catch (err: unknown) {
+            showToast(`❌ Erro no upload: ${err instanceof Error ? err.message : "Falha"}`);
+        } finally {
+            setUploading(false);
+            if (e.target) e.target.value = ""; // Clear input
+        }
+    }
+
+    async function handleRemoveFile(path: string) {
+        if (!confirm("Tem certeza que deseja remover esta evidência?")) return;
+        
+        try {
+            await api.removerEvidenciaSubitem(av.auditoria_id, path);
+            showToast("✅ Arquivo removido!");
+            
+            // Refresh evidence list
+            const res = await fetch(`${API_BASE}/api/evidencias/${av.auditoria_id}/${av.pratica_num}/${av.subitem_idx}`);
+            const data = await res.json();
+            setEvidence(data);
+        } catch (err: unknown) {
+            showToast(`❌ Erro ao remover: ${err instanceof Error ? err.message : "Falha"}`);
+        }
+    }
+
     function toggleCheck(key: string) {
         setCheckedItems(prev => {
             const next = new Set(prev);
@@ -268,21 +306,41 @@ export default function SubitemCard({
 
                         {/* ═══════════ LEFT COLUMN: EVIDENCES ═══════════ */}
                         <div className="p-5 border-r border-slate-700/30 space-y-4">
-                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                                📁 Evidências
-                                {evidence && <span className="text-xs text-slate-400 font-normal">{evidence.total} arquivo(s)</span>}
-                            </h4>
+                            <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                    📁 Evidências
+                                    {evidence && <span className="text-xs text-slate-400 font-normal">{evidence.total} arquivo(s)</span>}
+                                </h4>
+
+                                <label className={`cursor-pointer px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-500/30 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    {uploading ? (
+                                        <>
+                                            <span className="animate-spin">⏳</span>
+                                            ENVIANDO...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-xs">➕</span>
+                                            ADICIONAR
+                                        </>
+                                    )}
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        onChange={handleFileUpload} 
+                                        disabled={uploading}
+                                    />
+                                </label>
+                            </div>
 
                             {evidence && evidence.total > 0 ? (
                                 <>
-                                    {/* Image count / Doc count */}
                                     <div className="flex gap-3 text-xs text-slate-400">
                                         {evidence.images.length > 0 && <span>📷 {evidence.images.length} imagem(ns)</span>}
                                         {evidence.docs.length > 0 && <span>📄 {evidence.docs.length} documento(s)</span>}
                                         {evidence.videos.length > 0 && <span>🎬 {evidence.videos.length} vídeo(s)</span>}
                                     </div>
 
-                                    {/* Image Gallery — click to open lightbox */}
                                     {evidence.images.length > 0 && (
                                         <div>
                                             <button onClick={() => setShowGallery(!showGallery)}
@@ -296,13 +354,22 @@ export default function SubitemCard({
                                                             onClick={() => setLightboxIndex(i)}
                                                             className="flex flex-col rounded-xl overflow-hidden bg-slate-900/40 border border-slate-700 hover:border-blue-500/50 hover:ring-2 hover:ring-blue-500/20 group cursor-pointer transition-all shadow-lg"
                                                         >
-                                                            <div className="h-44 w-full bg-slate-950 flex items-center justify-center p-2">
+                                                            <div className="h-44 w-full bg-slate-950 flex items-center justify-center p-2 relative">
                                                                 <img
                                                                     src={`${API_BASE}/api/evidencias/file?path=${encodeURIComponent(img.path)}`}
                                                                     alt={img.name}
                                                                     className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
                                                                     loading="lazy"
                                                                 />
+                                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleRemoveFile(img.path); }}
+                                                                        className="p-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-full shadow-lg border border-red-400/20 backdrop-blur-sm"
+                                                                        title="Remover evidência"
+                                                                    >
+                                                                        🗑️
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                             <div className="bg-slate-800/80 px-3 py-2 border-t border-slate-700/50">
                                                                 <span className="text-[10px] text-slate-300 font-medium truncate block">
@@ -316,7 +383,6 @@ export default function SubitemCard({
                                         </div>
                                     )}
 
-                                    {/* Documents Gallery — grid of buttons with preview */}
                                     {evidence.docs.length > 0 && (
                                         <div className="pt-2">
                                             <button onClick={() => setShowDocuments(!showDocuments)}
@@ -325,49 +391,56 @@ export default function SubitemCard({
                                             </button>
 
                                             {showDocuments && (
-                                                <div className="space-y-3">
-                                                    {/* Grid of document icons */}
+                                                <>
                                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                                         {evidence.docs.map((doc, i) => (
-                                                            <button
-                                                                key={i}
-                                                                onClick={async () => {
-                                                                    const previewUrl = `${API_BASE}/api/evidencias/preview?path=${encodeURIComponent(doc.path)}`;
-                                                                    if (activeDocUrl === doc.path) {
-                                                                        setActiveDocUrl(null);
-                                                                        setDocPreview(null);
-                                                                    } else {
-                                                                        setActiveDocUrl(doc.path);
-                                                                        setActiveDocName(doc.name);
-                                                                        setDocPreview(null);
-                                                                        setDocLoading(true);
-                                                                        try {
-                                                                            const res = await fetch(previewUrl);
-                                                                            const data = await res.json();
-                                                                            setDocPreview(data);
-                                                                        } catch {
-                                                                            setDocPreview({ type: "error", name: doc.name, error: "Falha ao carregar preview" });
-                                                                        } finally {
-                                                                            setDocLoading(false);
+                                                            <div key={i} className="group relative">
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const previewUrl = `${API_BASE}/api/evidencias/preview?path=${encodeURIComponent(doc.path)}`;
+                                                                        if (activeDocUrl === doc.path) {
+                                                                            setActiveDocUrl(null);
+                                                                            setDocPreview(null);
+                                                                        } else {
+                                                                            setActiveDocUrl(doc.path);
+                                                                            setActiveDocName(doc.name);
+                                                                            setDocPreview(null);
+                                                                            setDocLoading(true);
+                                                                            try {
+                                                                                const res = await fetch(previewUrl);
+                                                                                const data = await res.json();
+                                                                                setDocPreview(data);
+                                                                            } catch {
+                                                                                setDocPreview({ type: "error", name: doc.name, error: "Falha ao carregar preview" });
+                                                                            } finally {
+                                                                                setDocLoading(false);
+                                                                            }
                                                                         }
-                                                                    }
-                                                                }}
-                                                                className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all hover:bg-slate-700/50 ${activeDocUrl === doc.path
-                                                                    ? "bg-blue-600/20 border-blue-500 shadow-glow-blue"
-                                                                    : "bg-slate-800/40 border-slate-700"
-                                                                    }`}
-                                                            >
-                                                                <span className="text-xl mb-1">📄</span>
-                                                                <span className="text-[10px] text-center line-clamp-2 text-slate-300 group-hover:text-blue-200">
-                                                                    {doc.name}
-                                                                </span>
-                                                            </button>
+                                                                    }}
+                                                                    className={`w-full flex flex-col items-center justify-center p-2 rounded-lg border transition-all hover:bg-slate-700/50 ${activeDocUrl === doc.path
+                                                                        ? "bg-blue-600/20 border-blue-500 shadow-glow-blue"
+                                                                        : "bg-slate-800/40 border-slate-700"
+                                                                        }`}
+                                                                >
+                                                                    <span className="text-xl mb-1">📄</span>
+                                                                    <span className="text-[10px] text-center line-clamp-2 text-slate-300 group-hover:text-blue-200">
+                                                                        {doc.name}
+                                                                    </span>
+                                                                </button>
+                                                                
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleRemoveFile(doc.path); }}
+                                                                    className="absolute -top-1 -right-1 p-1 bg-red-600/90 text-[10px] text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-red-400/20 shadow-lg"
+                                                                    title="Remover"
+                                                                >
+                                                                    🗑️
+                                                                </button>
+                                                            </div>
                                                         ))}
                                                     </div>
 
-                                                    {/* Inline Preview */}
                                                     {activeDocUrl && (
-                                                        <div className="rounded-xl overflow-hidden border border-slate-600 bg-slate-900/50 shadow-xl animate-scale-in">
+                                                        <div className="mt-4 rounded-xl overflow-hidden border border-slate-600 bg-slate-900/50 shadow-xl animate-scale-in">
                                                             <div className="bg-slate-800/80 px-4 py-2 flex items-center justify-between border-b border-slate-700">
                                                                 <span className="text-xs font-medium text-blue-300 truncate max-w-[80%]">
                                                                     👀 {activeDocName}
@@ -418,7 +491,7 @@ export default function SubitemCard({
 
                                                                         {docPreview.type === "word" && (
                                                                             <div className="p-6 max-h-[600px] overflow-auto bg-white/95 text-slate-900">
-                                                                                {(docPreview.paragraphs || []).map((p: string, pi: number) => (
+                                                                                {(docPreview.paragraphs || []).map((p, pi) => (
                                                                                     <p key={pi} className="mb-3 text-sm leading-relaxed">{p}</p>
                                                                                 ))}
                                                                             </div>
@@ -454,12 +527,11 @@ export default function SubitemCard({
                                                             </div>
                                                         </div>
                                                     )}
-                                                </div>
+                                                </>
                                             )}
                                         </div>
                                     )}
 
-                                    {/* Videos */}
                                     {evidence.videos.length > 0 && (
                                         <div>
                                             <p className="text-xs text-slate-400 mb-2">🎬 Vídeos:</p>
@@ -484,10 +556,7 @@ export default function SubitemCard({
                                     ⚙️ Configure a pasta de evidências em Configurações
                                 </div>
                             )}
-
-                            {/* Removed old IA button from bottom of left column effectively moving it to header */}
                         </div>
-
                         {/* ═══════════ RIGHT COLUMN: EVALUATION ═══════════ */}
                         <div className="p-5 space-y-4">
                             <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-2">📊 Avaliação</h4>
@@ -504,7 +573,7 @@ export default function SubitemCard({
                                     <span className="text-[#FFD600] text-xl mt-0.5">⚠️</span>
                                     <div>
                                         <p className="text-sm text-[#827717] leading-relaxed font-semibold">
-                                            <span className="text-[#FBC02D] font-bold">Regras Especiais:</span> {criterios.regras_especiais}
+                                            <span className="text-[#FBC02D] font-bold">Regras Especiais:</span> {criterios?.regras_especiais}
                                         </p>
                                     </div>
                                 </div>
@@ -954,17 +1023,17 @@ export default function SubitemCard({
                     onClick={() => setLightboxIndex(null)}
                     onKeyDown={(e) => {
                         if (e.key === "Escape") setLightboxIndex(null);
-                        if (e.key === "ArrowRight") setLightboxIndex(Math.min(lightboxIndex + 1, evidence.images.length - 1));
-                        if (e.key === "ArrowLeft") setLightboxIndex(Math.max(lightboxIndex - 1, 0));
+                        if (e.key === "ArrowRight" && evidence) setLightboxIndex(Math.min(lightboxIndex + 1, evidence.images.length - 1));
+                        if (e.key === "ArrowLeft" && evidence) setLightboxIndex(Math.max(lightboxIndex - 1, 0));
                     }}
                     tabIndex={0}
-                    ref={(el) => el?.focus()}
+                    ref={(el) => (el as HTMLElement)?.focus?.()}
                 >
                     {/* Header bar */}
                     <div className="w-full flex items-center justify-between p-4 bg-black/40 z-10">
                         <div className="flex flex-col">
                             <span className="text-white font-medium text-sm">
-                                {evidence.images[lightboxIndex].name}
+                                {evidence.images[lightboxIndex]?.name}
                             </span>
                             <span className="text-slate-500 text-[10px]">
                                 {lightboxIndex + 1} de {evidence.images.length}
@@ -1003,8 +1072,8 @@ export default function SubitemCard({
                         {/* The Image */}
                         <div className="relative w-full h-full flex items-center justify-center">
                             <img
-                                src={`${API_BASE}/api/evidencias/file?path=${encodeURIComponent(evidence.images[lightboxIndex].path)}`}
-                                alt={evidence.images[lightboxIndex].name}
+                                src={`${API_BASE}/api/evidencias/file?path=${encodeURIComponent(evidence?.images[lightboxIndex]?.path || "")}`}
+                                alt={evidence?.images[lightboxIndex]?.name}
                                 className="max-w-full max-h-full object-contain rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-scale-in"
                                 onClick={(e) => e.stopPropagation()}
                             />
@@ -1014,7 +1083,12 @@ export default function SubitemCard({
                     {/* Minimal Controls/Status */}
                     <div className="p-6 w-full flex justify-center gap-4 bg-gradient-to-t from-black/60 to-transparent">
                         <button 
-                            onClick={(e) => { e.stopPropagation(); window.open(`${API_BASE}/api/evidencias/file?path=${encodeURIComponent(evidence.images[lightboxIndex].path)}`, '_blank'); }}
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (evidence?.images[lightboxIndex]) {
+                                    window.open(`${API_BASE}/api/evidencias/file?path=${encodeURIComponent(evidence.images[lightboxIndex].path)}`, '_blank'); 
+                                }
+                            }}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-lg transition-all"
                         >
                             📥 Baixar Original

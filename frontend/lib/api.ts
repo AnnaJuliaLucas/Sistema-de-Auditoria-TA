@@ -271,6 +271,23 @@ export const api = {
     });
   },
 
+  uploadEvidenciaSubitem: (auditoria_id: number, pratica_num: number, subitem_idx: number, file: File) => {
+    const formData = new FormData();
+    formData.append("auditoria_id", String(auditoria_id));
+    formData.append("pratica_num", String(pratica_num));
+    formData.append("subitem_idx", String(subitem_idx));
+    formData.append("file", file);
+    return fetchAPI<{ ok: boolean; filename: string; path: string; message: string }>("/api/evidencias/upload-granular", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  removerEvidenciaSubitem: (auditoriaId: number, path: string) =>
+    fetchAPI<{ ok: boolean }>(`/api/evidencias/remover?auditoria_id=${auditoriaId}&path=${encodeURIComponent(path)}`, {
+      method: "DELETE",
+    }),
+
   // Agente Autônomo
   runAgentBatch: (auditoriaId: number, config: { api_key?: string; provider?: string; base_url?: string; economico?: boolean }) =>
     fetchAPI<{ job_id: string; status: string; message: string; pendentes: number }>(

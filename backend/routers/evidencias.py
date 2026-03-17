@@ -1,13 +1,11 @@
-"""
-routers/evidencias.py — Evidence file listing, serving, and criteria retrieval.
-"""
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import FileResponse
 from pathlib import Path
-from backend.db import get_auditoria, BASE_DIR
+from backend.db import get_auditoria, BASE_DIR, get_db, USE_POSTGRES
 import sys
 import re
 import os
+import json
 import urllib.parse
 import urllib.request
 import zipfile
@@ -557,4 +555,117 @@ def preview_document(path: str = Query(..., description="Absolute path to the do
         except Exception as e:
             return {"type": "error", "name": file_path.name, "error": str(e)}
 
+
     return {"type": "unsupported", "name": file_path.name}
+
+
+@router.post("/upload-granular")
+async def upload_granular(
+    auditoria_id: int = Form(...),
+    pratica_num: int = Form(...),
+    subitem_idx: int = Form(...),
+    file: UploadFile = File(...)
+):
+    aud = get_auditoria(auditoria_id)
+    if not aud:
+        raise HTTPException(status_code=404, detail="Auditoria não encontrada")
+    
+    # 1. Definir Pasta Alvo
+    # Usamos o caminho padrão: uploads/{audit_id}/evidences/Pratica {num}/Subitem {idx+1}/
+    audit_dir = BASE_DIR / "uploads" / str(auditoria_id)
+    evidences_dir = audit_dir / "evidences"
+    
+    # Formatação de pasta para manter compatibilidade com o construtor do mapa
+    # O mapa busca por "[1] NOME" ou "1. " para prática e "1.1 NOME" para subitem
+    p_folder_name = f"Pratica {pratica_num}"
+    s_folder_name = f"{pratica_num}.{subitem_idx + 1}"
+    
+    target_dir = evidences_dir / p_folder_name / s_folder_name
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = target_dir / file.filename
+    
+    # 2. Salvar Arquivo
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        log.error(f"Error saving granular upload: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {str(e)}")
+    
+    # 3. Atualizar mapa de evidências (background ou imediato)
+    try:
+        # Re-escaneia a pasta de evidências para o novo mapa
+        new_map = _get_or_build_evidence_map(str(evidences_dir), refresh=True)
+        
+        # Converte chaves para string para salvar no DB
+        db_map = {f"{p}.{s}": files for (p, s), files in new_map.items()}
+        
+        with get_db() as conn:
+            q = "UPDATE auditorias SET evidence_map=?, evidence_folder_path=? WHERE id=?"
+            if USE_POSTGRES: q = q.replace("?", "%s")
+            conn.execute(q, (json.dumps(db_map), str(evidences_dir), auditoria_id))
+            conn.commit()
+            
+        log.info(f"Granular upload success: {file.filename} for audit {auditoria_id}")
+    except Exception as e:
+        log.error(f"Evidence map update failed after upload: {e}")
+    
+    return {
+        "ok": True,
+        "filename": file.filename,
+        "path": str(file_path),
+        "message": "Arquivo enviado com sucesso!"
+    }
+
+
+@router.delete("/remover")
+async def remover_evidencia(
+    auditoria_id: int = Query(...),
+    path: str = Query(...)
+):
+    aud = get_auditoria(auditoria_id)
+    if not aud:
+        raise HTTPException(status_code=404, detail="Auditoria não encontrada")
+    
+    try:
+        # Decodar o caminho recebido
+        decoded_path = urllib.parse.unquote(path)
+        file_path = Path(decoded_path).resolve()
+        
+        if not file_path.exists():
+            log.warning(f"Tentativa de remover arquivo inexistente: {file_path}")
+            return {"ok": True, "message": "Arquivo já não existe"}
+        
+        # Segurança: garantir que o arquivo está dentro da pasta de uploads da auditoria
+        audit_dir = (BASE_DIR / "uploads" / str(auditoria_id)).resolve()
+        
+        # Verifica se o arquivo está dentro da pasta da auditoria
+        if not str(file_path).startswith(str(audit_dir)):
+            log.error(f"Tentativa de violação de segurança: {file_path} não está em {audit_dir}")
+            raise HTTPException(status_code=403, detail="Acesso negado: o arquivo não pertence a esta auditoria.")
+
+        if file_path.is_file():
+            file_path.unlink()
+            log.info(f"Arquivo removido: {file_path}")
+        else:
+            raise HTTPException(status_code=400, detail="O caminho não é um arquivo")
+            
+        # Atualizar mapa
+        ev_root = audit_dir / "evidences"
+        if ev_root.exists():
+            new_map = _get_or_build_evidence_map(str(ev_root), refresh=True)
+            db_map = {f"{p}.{s}": files for (p, s), files in new_map.items()}
+            
+            with get_db() as conn:
+                q = "UPDATE auditorias SET evidence_map=? WHERE id=?"
+                if USE_POSTGRES: q = q.replace("?", "%s")
+                conn.execute(q, (json.dumps(db_map), auditoria_id))
+                conn.commit()
+            
+        return {"ok": True, "message": "Arquivo removido com sucesso"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error removing evidence: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
