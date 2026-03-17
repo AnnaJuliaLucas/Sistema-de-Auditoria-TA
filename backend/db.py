@@ -269,6 +269,19 @@ def init_db():
         # --- REPAIR MISSING COLUMNS (v15+) ---
         try:
             with _sqlite_connect() as conn:
+                # knowledge_base table — CRITICAL for learning
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS knowledge_base (
+                        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                        titulo       TEXT    NOT NULL,
+                        conteudo     TEXT    NOT NULL,
+                        tag          TEXT    DEFAULT 'geral',
+                        fonte        TEXT    DEFAULT 'manual',
+                        data_criacao TEXT    NOT NULL
+                    )
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_titulo ON knowledge_base(titulo)")
+
                 # auditorias table migrations
                 for col_name, col_type in [("evidence_map", "TEXT DEFAULT '{}'"), 
                                            ("evidence_zip_url", "TEXT DEFAULT ''"),
@@ -1087,7 +1100,7 @@ def buscar_contexto_relevante(query: str, limit: int = 3) -> str:
             LIMIT ?
         """, (f"%{query}%", f"%{query}%", limit)).fetchall()
         
-        ctx = [r["conteudo"] for r in rows]
+        ctx = [str(r["conteudo"]) for r in rows if r["conteudo"] is not None]
         return "\n\n---\n\n".join(ctx) if ctx else ""
 
 
