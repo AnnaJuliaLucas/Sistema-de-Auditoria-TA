@@ -585,13 +585,23 @@ async def upload_granular(
     
     file_path = target_dir / file.filename
     
-    # 2. Salvar Arquivo
+    # 2. Salvar Arquivo e Extrair se for ZIP
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        if file.filename.lower().endswith(".zip"):
+            # Salva temporariamente e extrai
+            temp_zip = target_dir / f"temp_{file.filename}"
+            with open(temp_zip, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            log.info(f"Extracting granular ZIP: {file.filename}")
+            extract_zip_robustly(temp_zip, target_dir)
+            temp_zip.unlink() # Remove o zip após extrair
+        else:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
     except Exception as e:
-        log.error(f"Error saving granular upload: {e}")
-        raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {str(e)}")
+        log.error(f"Error saving/extracting granular upload: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao processar arquivo: {str(e)}")
     
     # 3. Atualizar mapa de evidências (background ou imediato)
     try:

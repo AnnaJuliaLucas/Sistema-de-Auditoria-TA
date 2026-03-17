@@ -917,6 +917,22 @@ export default function SubitemCard({
                                     </div>
                                 )}
 
+                                {/* Nota livre for aumentar */}
+                                {decisao === "aumentar" && notaSa < 4 && (
+                                    <div className="flex items-center gap-3">
+                                        <label className="text-sm text-slate-400">Nota manual:</label>
+                                        <select
+                                            value={notaLivre ?? ""}
+                                            onChange={(e) => setNotaLivre(e.target.value ? Number(e.target.value) : null)}
+                                            className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-white">
+                                            <option value="">Automática (SA+1)</option>
+                                            {Array.from({ length: 4 - notaSa }, (_, i) => notaSa + 1 + i).map((n) => (
+                                                <option key={n} value={n}>{n}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
                                 {/* Nota Final Preview */}
                                 <div className="flex items-center gap-3">
                                     <span className="text-sm text-slate-400 font-medium">Nota Final:</span>
