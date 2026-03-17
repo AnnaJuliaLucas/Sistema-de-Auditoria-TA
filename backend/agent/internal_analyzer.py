@@ -103,7 +103,7 @@ class InternalHeuristicAnalyzer:
         
         # 4.4. Verificação de Falhas Específicas (Jobs com Erro, Incompleto)
         tem_erro_job = any(re.search(r"erro|fail|falha|abort|interrupt|warning", ev['conteudo'], re.I) for ev in evidencias_textuais if "vdog" in ev['conteudo'] or "backup" in ev['conteudo'])
-        incompleto_evidencia = total_files < 2 or not any(re.search(r"print|screenshot|config|supervis", full_text, re.I))
+        incompleto_evidencia = total_files < 2 or not re.search(r"print|screenshot|config|supervis", full_text, re.I)
         
         # 4.5. Busca por Decisões Passadas (Aprendizado)
         decisoes_passadas = ""
