@@ -323,7 +323,9 @@ def get_unidades_areas():
     return {
         "Juiz de Fora": ["Utilidades", "Aciaria", "Laminação", "Redução"],
         "Piracicaba": ["Aciaria", "Utilidades", "Laminação"],
+        "Sitrel": ["Laminação"],
         "João Monlevade": ["Aciaria", "Laminação", "Alto Forno", "Utilidades"],
         "Trefilarias": ["São Paulo", "Sabará", "Resende", "Juiz de Fora"],
         "Mina do Andrade": ["Mineração"]
     }
+    
