@@ -290,16 +290,22 @@ def preparar_evidencias(
 # ──────────────────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = f"""Você é um sistema de Auditoria de TI/TA especializado em conformidade com o procedimento PO.AUT.002 Rev3.
-Você opera no modo 'SQUAD DE ESPECIALISTAS' para garantir o máximo rigor técnico:
+Você opera no modo 'SQUAD DE ESPECIALISTAS' seguindo a POLÍTICA DO EXPERT:
 
-1. 👨‍💻 AUDITOR LÍDER: Mantém o foco absoluto no PO.AUT.002. Não aceita justificativas vagas. Exige provas concretas para cada nível de maturidade (0-4).
-2. 🔍 ANALISTA DE EVIDÊNCIAS: Especialista em análise forense. Cruza dados de logs, nomes de arquivos, datas e metadados visuais para confirmar a autenticidade.
-3. ⚖️ ESPECIALISTA EM RISCO E COMPLIANCE: Avalia se a "Prática" descrita condiz com a "Evidência" apresentada. Identifica lacunas que impedem notas superiores.
+1. 👨‍💻 AUDITOR LÍDER: Mantém o foco absoluto no PO.AUT.002.
+2. 🔍 ANALISTA DE EVIDÊNCIAS: Identifica indícios técnicos (logs, tags, datas).
+3. ⚖️ ESPECIALISTA EM RISCO: Aplica a regra "NA DÚVIDA, DIMINUA". Se a evidência não remove a ambiguidade, a nota deve ser conservadora.
 
-DIRETRIZES FUNDAMENTAIS:
-- CRITÉRIO TEMPORAL: Evidências devem ter < 12 meses. Se ultrapassado, nota 1 ou 0 dependendo da gravidade.
-- CRITÉRIO SAP: Menção a ordens de manutenção exige comprovação visual da ordem ou registro textual inequívoco.
-- RIGOR TÉCNICO: Não assuma que algo existe se não estiver documentado. "Dúvida do Auditor" = Nota Inferior.
+DIRETRIZES DE JUSTIFICATIVA (Obrigatório):
+A 'descricao_nc' deve ser escrita como um parecer técnico seguindo rigorosamente este padrão de 3 pontos:
+1. [Título Curto do Problema]: [Explicação técnica do que foi encontrado].
+2. [Lacuna de Evidência]: [O que faltou ou está fraco conforme os critérios].
+3. [Conclusão de Nota]: [Por que a nota X foi dada e o que impede a nota superior].
+
+DIRETRIZES TÉCNICAS:
+- CRITÉRIO TEMPORAL: Evidências devem ter < 12 meses.
+- CRITÉRIO SAP: Menções a ordens exigem prova visual ou texto inequívoco.
+- INDÍCIOS DO EXPERT: Use as listas de 'Fortalece' e 'Enfraquece' fornecidas para decidir.
 - SEMPRE responda em Português (Brasil).
 - Responda EXCLUSIVAMENTE em JSON."""
 
@@ -389,6 +395,9 @@ def build_audit_prompt(
     niveis_oficiais        = criterio_oficial.get("niveis", {})
     evidencia_desc_oficial = criterio_oficial.get("evidencias_exigidas", "")
     regras_especiais       = criterio_oficial.get("regras_especiais", "")
+    fortalece              = criterio_oficial.get("fortalece", [])
+    enfraquece             = criterio_oficial.get("enfraquece", [])
+    armadilhas             = criterio_oficial.get("armadilhas", "")
 
     evidencia_desc = evidencia_desc_oficial or evidencia_descricao_planilha
     niveis_txt     = _montar_niveis_texto(niveis_oficiais, niveis_planilha)
@@ -447,6 +456,16 @@ REGRAS ESPECÍFICAS:
 NÍVEIS DE MATURIDADE (Critério de Pontuação):
 {niveis_txt}
 
+💡 INDÍCIOS DO EXPERT (Use para decidir):
+🟢 FORTALECE A EVIDÊNCIA:
+{'- ' + '\n- '.join(fortalece) if fortalece else 'Nenhum indício específico.'}
+
+🔴 ENFRAQUECE A EVIDÊNCIA:
+{'- ' + '\n- '.join(enfraquece) if enfraquece else 'Nenhum indício específico.'}
+
+⚠️ ARMADILHAS COMUNS:
+{armadilhas if armadilhas else 'Não mapeadas.'}
+
 CONTEXTO DO DISPOSITIVO (Self Assessment):
 A área declarou nota {nota_declarada}/4. Sua missão é validar se os arquivos abaixo sustentam essa nota.
 
@@ -461,13 +480,14 @@ ANÁLISE DE EVIDÊNCIAS VISUAIS
 {img_info}
 
 ═══════════════════════════════════════════════════════════
-MISSÃO DO SQUAD:
-1. Analise cada documento/imagem fundo. Identifique datas e tags de ativos.
-2. Aplique os critérios de maturidade com "Pé no Chão". Não conceda nota por "promessa" de melhoria.
-3. Determine se o status é:
-   - "permanece": Evidência COMPLETA e ATUAL que justifica a nota {nota_declarada}.
-   - "insuficiente": Evidência existe mas é parcial, desatualizada ou incompleta para a nota {nota_declarada}.
-   - "inexistente": Não há prova material válida. Nota deve ser 0.
+MISSÃO DO SQUAD (POLÍTICA DO EXPERT):
+1. Analise cada documento/imagem a fundo. Identifique datas, nomes de ativos e contextos.
+2. Aplique a política "NA DÚVIDA, DIMINUA": Se a evidência for ambígua, genérica ou não provar categoricamente o nível de maturidade, opte pela nota inferior.
+3. Use os 'Indícios do Expert' (Fortalece/Enfraquece) como guia definitivo.
+4. Determine se o status é:
+   - "permanece": Evidência CLARA e INEQUÍVOCA que sustenta a nota {nota_declarada}.
+   - "insuficiente": Evidência parcial, duvidosa ou sem contexto suficiente para a nota {nota_declarada}.
+   - "inexistente": Não há prova material válida ou a prova está vencida (> 12 meses).
 
 RESPOSTA OBRIGATÓRIA EM JSON:
 {{
@@ -476,9 +496,9 @@ RESPOSTA OBRIGATÓRIA EM JSON:
   "confianca": "alta" | "media" | "baixa",
   "pontos_atendidos": ["Lista de fatos positivos encontrados"],
   "pontos_faltantes": ["O que falta para atingir a nota desejada ou a nota 4"],
-  "descricao_nc": "Relato técnico da Não Conformidade ou GAP encontrado",
+  "descricao_nc": "Relato técnico no padrão: 1. [Problema]: ... 2. [Lacuna]: ... 3. [Conclusão]: ...",
   "comentarios": "Sugestões de melhoria para o próximo ciclo",
-  "analise_detalhada": "Justificativa técnica profunda mencionando nomes de arquivos e dados específicos extraídos.",
+  "analise_detalhada": "Justificativa interna profunda mencionando nomes de arquivos e dados específicos.",
   "inventario_imagens": [
     {{ "arquivo": "...", "equipamento_identificado": "...", "valida": true, "observacao": "..." }}
   ]

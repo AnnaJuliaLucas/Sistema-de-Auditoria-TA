@@ -87,7 +87,22 @@ CRITERIOS = {
         },
         'armadilhas': (
             'HD externo sem ordem SAP = no máximo nota 3. Backup sem data visível ou sem cobertura de todos os PLCs/supervisórios = nota reduzida. VersionDog/Octoplant instalado mas sem rotina documentada não garante nota 4.'
-        )
+        ),
+        'fortalece': [
+            'Registros formais da rotina periódica.',
+            'Comprovação de execução por evento, quando aplicável.',
+            'Evidência com data, contexto, identificação da atividade e rastreabilidade.',
+            'Registros vinculados a sistema oficial ou controle formal da área.',
+            'Cobertura compatível com a frequência declarada no assessment.'
+        ],
+        'enfraquece': [
+            'Apenas relato informal sem registro.',
+            'Print sem contexto, sem data ou sem vínculo claro com o item.',
+            'Registros isolados, sem sequência suficiente para comprovar periodicidade.',
+            'Material sem comprovação de execução por evento, quando isso fizer parte do requisito.',
+            'Evidência fora da vigência aplicável.',
+            'Arquivo existente, mas sem demonstrar o atendimento efetivo do critério.'
+        ]
     },
 
     (1, 1): {
@@ -125,7 +140,25 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Dois locais distintos significa locais FISICAMENTE separados (não duas pastas no mesmo PC). HD externo aceito para nota 3, mas servidor com redundância de HD exigido para nota 4. Pasta sem organização por data ou sem comprovação de periodicidade não pontua.'
-        )
+        ),
+        'fortalece': [
+            'Estrutura formal de diretórios ou repositórios com lógica consistente.',
+            'Uso de sistema dedicado de gestão/versionamento de backup.',
+            'Existência de caminhos de rede, servidores definidos ou repositórios oficiais.',
+            'Evidência de cópia em mais de um destino.',
+            'Organização por ativo, data, versão ou projeto.',
+            'Registros que demonstrem controle de comparação entre original e backup.',
+            'Evidência de rotina com retenção histórica e facilidade de restauração.'
+        ],
+        'enfraquece': [
+            'Backup armazenado apenas localmente em estação única.',
+            'Ausência de comprovação de redundância.',
+            'Arquivos soltos, sem convenção de nomes ou sem estrutura.',
+            'Prints sem contexto suficiente para demonstrar armazenamento e redundância.',
+            'Existência de backup, mas sem demonstrar onde está salvo e como está organizado.',
+            'Repositório sem identificação clara de ativo, data ou versão.',
+            'Ausência de evidência de histórico, retenção ou cópia secundária.'
+        ]
     },
 
     (1, 2): {
@@ -157,7 +190,24 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Teste pontual sem periodicidade sistemática não atinge nota 3. Testes sem registro formal (planilha de controle) são inválidos. Aplicar somente aos ativos críticos 1 e A — não avaliar todos os ativos.'
-        )
+        ),
+        'fortalece': [
+            'Ordens SAP com descrição técnica completa.',
+            'Identificação objetiva dos equipamentos ou sistemas testados.',
+            'Comprovação de que o teste foi feito com base no último backup disponível.',
+            'Registro com data, horário e rastreabilidade.',
+            'Cobertura compatível com a nota declarada (trimestral para críticos 1 e A).',
+            'Existência de histórico consistente, e não apenas um registro isolado.'
+        ],
+        'enfraquece': [
+            'Apenas existência de backup, sem comprovação de teste.',
+            'Ordem SAP sem detalhamento técnico.',
+            'Print sem identificação do ativo testado.',
+            'Evidência sem data ou sem vínculo com o item.',
+            'Testes registrados apenas para parte dos ativos (quando nota declarada exige mais).',
+            'Ausência de comprovação da fonte do backup.',
+            'Material que prova backup realizado, mas não prova teste de restauração/validação.'
+        ]
     },
 
     (1, 3): {
@@ -194,7 +244,25 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Registro sem autor identificado (login pessoal) não atinge nota 4. Print sem data ou contexto não vale como evidência de controle. Apenas registrar o que mudou sem mostrar o antes/depois pode ser insuficiente.'
-        )
+        ),
+        'fortalece': [
+            'Histórico de versões por ativo.',
+            'Registro formal de check-in/check-out ou equivalente.',
+            'Associação entre modificação e ordem/solicitação/intervenção.',
+            'Registro técnico com motivo da mudança.',
+            'Evidência de data, usuário/responsável e ativo impactado.',
+            'Possibilidade de comparar versões anterior e posterior.',
+            'Trilhas de auditoria em sistema oficial.'
+        ],
+        'enfraquece': [
+            'Alterações feitas, mas sem registro formal.',
+            'Apenas relato verbal ou instrução informal.',
+            'Existência de backup/versionamento sem descrição da modificação realizada.',
+            'Print isolado sem contexto suficiente.',
+            'Evidência sem data, sem responsável ou sem vínculo claro com o ativo.',
+            'Registro genérico de manutenção sem detalhar a alteração de automação.',
+            'Histórico incompleto ou sem rastreabilidade da mudança.'
+        ]
     },
 
     (1, 4): {
@@ -222,7 +290,21 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Verificação informal (verbal ou de memória) sem registro no SAP = máximo nota 2. Rota de inspeção exigida no SAP para nota 4. Drives sem registro próprio de falhas podem prejudicar a nota.'
-        )
+        ),
+        'fortalece': [
+            'Histórico formal de alarmes e falhas.',
+            'Evidência de acompanhamento recorrente.',
+            'Associação entre alarme/falha e ação corretiva.',
+            'Rastreabilidade entre ocorrência, diagnóstico e intervenção.',
+            'Padronização do tratamento entre diferentes ativos.'
+        ],
+        'enfraquece': [
+            'Apenas prints isolados de tela sem contexto.',
+            'Apenas existência de alarme em sistema, sem prova de acompanhamento.',
+            'Registros sem data, sem identificação do ativo ou sem tratativa.',
+            'Material que mostra ocorrência, mas não mostra análise ou tratamento.',
+            'Ausência de histórico utilizável.'
+        ]
     },
 
     (1, 5): {
@@ -250,7 +332,21 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Certificação de rede sem periodicidade ou somente visual não atinge nota 3. Cada tipo de rede tem periodicidade própria — não confundir. Relatório de certificação desatualizado (> 12 meses) não é válido.'
-        )
+        ),
+        'fortalece': [
+            'Diagrama de rede claro e identificável.',
+            'Lista formal de ativos de rede e dispositivos conectados.',
+            'Endereçamento IP documentado.',
+            'Mapa coerente entre ativos, comunicação e topologia.',
+            'Evidência de atualização ou revisão periódica.'
+        ],
+        'enfraquece': [
+            'Apenas conhecimento verbal da equipe sobre a rede.',
+            'Desenho informal sem identificação suficiente.',
+            'Documento antigo sem evidência de validade ou atualização.',
+            'Lista parcial de IPs sem contexto de rede.',
+            'Materiais desconectados entre si, sem formar visão rastreável da rede.'
+        ]
     },
 
     (1, 6): {
@@ -289,7 +385,21 @@ CRITERIOS = {
         },
         'armadilhas': (
             '⚠️ SOMENTE CLPs! Drives, supervisórios e IHMs NÃO entram neste subitem. PDM no SAP sem registros de execução das ordens não comprova a prática. Plano preventivo não vinculado ao SAP (ex.: planilha avulsa) não garante nota 4.'
-        )
+        ),
+        'fortalece': [
+            'Plano preventivo formal por ativo ou família de ativos.',
+            'Ordens SAP com descrição coerente com atividade preventiva.',
+            'Histórico de execução recorrente.',
+            'Checklists ou relatórios de manutenção realizados.',
+            'Evidência de cobertura dos ativos críticos.'
+        ],
+        'enfraquece': [
+            'Apenas ordens corretivas apresentadas como se fossem preventivas.',
+            'Registros isolados, sem demonstrar rotina.',
+            'Preventivas sem vínculo claro com ativos de automação.',
+            'Cronograma sem prova de execução.',
+            'Execução pontual, mas sem formalização do plano.'
+        ]
     },
 
     (1, 7): {
@@ -317,7 +427,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'KPI de ano anterior não é válido. KPI não separado por área prejudica a nota. KPI não definido no SIG = não atinge nota 4. Meta sem acompanhamento mensal documentado não atinge nota 3.'
-        )
+        ),
+        'fortalece': [
+            'Registro formal de eventos com causa vinculada à automação.',
+            'Associação entre evento e análise de causa.',
+            'Indicadores ou relatórios recorrentes de acompanhamento.',
+            'Evidência de priorização e ação corretiva/preventiva.',
+            'Consolidação por período, área, ativo ou criticidade.'
+        ],
+        'enfraquece': [
+            'Apenas ocorrência de falha sem relação clara com impacto produtivo.',
+            'Registro genérico de parada sem demonstrar causa ligada à automação.',
+            'Registros pontuais sem demonstrar rotina de acompanhamento.',
+            'Material que mostra falha técnica, mas não comprova indisponibilidade do processo.'
+        ]
     },
 
     # =========================================================
@@ -365,7 +488,21 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Verificação visual sem registro formal no SAP não é válida. Lista desatualizada ou sem data de última conferência prejudica. Sobressalentes sem identificação de criticidade (1 e A) podem inflar a nota.'
-        )
+        ),
+        'fortalece': [
+            'Lista formal de sobressalentes com identificação técnica.',
+            'Associação clara entre peça e aplicação/ativo.',
+            'Registro de quantidade disponível.',
+            'Evidência de localização física ou estoque formal.',
+            'Integração com sistema corporativo, almoxarifado ou controle oficial.'
+        ],
+        'enfraquece': [
+            'Apenas relato verbal de que a área "tem peças".',
+            'Foto sem identificação técnica suficiente.',
+            'Lista genérica sem vínculo com automação.',
+            'Relação de peças sem comprovação de disponibilidade.',
+            'Controle informal, sem atualização ou rastreabilidade.'
+        ]
     },
 
     (2, 1): {
@@ -402,7 +539,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Lista de equipamentos sem critério de definição (justificativa do por quê tem/não tem sobressalente) não atinge nota 4. Equipamentos críticos 1 e A sem sobressalente identificado = pontuação zero neste item. Conferência não feita in loco = não válida.'
-        )
+        ),
+        'fortalece': [
+            'Matriz de criticidade (1 e A) vinculada ao plano de sobressalentes.',
+            'Justificativa técnica para as quantidades definidas.',
+            'Documento oficial no SIG formalizando a estratégia de estoque.',
+            'Parametrização correta no SAP com quantidades mínimas.',
+            'Evidência de que o estoque atende à criticidade operacional.'
+        ],
+        'enfraquece': [
+            'Lista de equipamentos sem critério de definição de estoque.',
+            'Equipamentos críticos 1/A sem sobressalente e sem justificativa.',
+            'Divergência entre o que está no SAP e o que é declarado.',
+            'Ausência de formalização no SIG para nota 4.'
+        ]
     },
 
     # =========================================================
@@ -446,7 +596,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Planilha desatualizada (> 12 meses) não é válida. Lista técnica no SAP exigida para nota 4. Campos obrigatórios em branco (IP, versão de firmware, etc.) reduzem a nota.'
-        )
+        ),
+        'fortalece': [
+            'Planilha completa com dados técnicos (IP, Firmware, Localização).',
+            'Lista técnica cadastrada no SAP.',
+            'Ordem cíclica anual para atualização.',
+            'Evidência de revisão sistemática pós-alterações.',
+            'Rastreabilidade total entre planta física e mapa.'
+        ],
+        'enfraquece': [
+            'Mapa desatualizado há mais de 12 meses.',
+            'Campos técnicos obrigatórios em branco.',
+            'Ausência de ordem cíclica no SAP (para nota 4).',
+            'Inconsistência entre ativos reais e ativos listados.'
+        ]
     },
 
     (3, 1): {
@@ -485,7 +648,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Planilha de softwares sem versão, licença ou localização = nota reduzida. Ordem cíclica no SAP para atualização exigida para nota 4. Softwares de terceiros não mapeados são uma falha comum.'
-        )
+        ),
+        'fortalece': [
+            'Inventário detalhado de softwares com versões e licenças.',
+            'Integração com ferramenta de versionamento (ex: Asset Centre/MDT).',
+            'Ordem cíclica no SAP para atualização.',
+            'Associação clara entre software e equipamento/processo.',
+            'Rastreabilidade de atualizações e patches.'
+        ],
+        'enfraquece': [
+            'Lista de softwares sem indicação de versão.',
+            'Ausência de vínculo entre software e ativo/servidor.',
+            'Falta de evidência de atualização sistemática.',
+            'Software listado mas sem prova de uso ou utilidade.'
+        ]
     },
 
     # =========================================================
@@ -524,7 +700,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Cronograma definido mas em atraso = no máximo nota 3. Treinamentos sem comprovação de realização (certificados, listas de presença) não valem. Mapa de treinamentos sem vinculação por cargo não atinge nota 4.'
-        )
+        ),
+        'fortalece': [
+            'Cronograma de treinamentos atualizado e em dia.',
+            'Registros formais de realização (lista de presença, certificados).',
+            'Matriz de competências por cargo definida.',
+            'Planejamento de longo prazo para reciclagem.',
+            'Evidência de eficácia do treinamento (avaliação).'
+        ],
+        'enfraquece': [
+            'Cronograma de treinamentos em atraso.',
+            'Treinamentos realizados mas sem evidência documental.',
+            'Mapeamento genérico sem distinção por cargo.',
+            'Ausência de plano de atualização sistemática.'
+        ]
     },
 
     (4, 1): {
@@ -561,7 +750,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Sub-item específico para o(s) responsável(is) de automação — não considerar equipe toda. Treinamento planejado mas não realizado = nota 2 no máximo. Certificado de treinamento vencido (> 12 meses para renováveis) não é válido.'
-        )
+        ),
+        'fortalece': [
+            'Mapeamento específico para especialistas/responsáveis de TA.',
+            'Certificados de treinamentos avançados (OEMs, Redes, Segurança).',
+            'Cronograma de capacitação contínua em dia.',
+            'Evidência de especialização técnica do responsável.',
+            'Planejamento de sucessão técnica via treinamento.'
+        ],
+        'enfraquece': [
+            'Treinamento planejado para o responsável mas não realizado.',
+            'Certificados vencidos ou obsoletos.',
+            'Falta de cronograma específico para o nível de especialista.',
+            'Apenas treinamentos genéricos (segurança do trabalho, etc.) para o técnico de TA.'
+        ]
     },
 
     (4, 2): {
@@ -595,7 +797,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Participação abaixo de 50% das reuniões = não atinge nota 3. Apresentação sem registro (ata, print, arquivo) não é válida. Boas práticas sem compartilhamento formal com outras unidades não atingem nota 4.'
-        )
+        ),
+        'fortalece': [
+            'Registro formal de apresentações técnicas (PPTs, Atas).',
+            'Comprovante de participação em fóruns corporativos de TA.',
+            'Disseminação de melhorias para outras unidades ou áreas.',
+            'Rastreabilidade de público e data da apresentação.',
+            'Conteúdo técnico relevante demonstrando "lições aprendidas".'
+        ],
+        'enfraquece': [
+            'Material técnico isolado sem prova de apresentação/disseminação.',
+            'Participação em reuniões abaixo do percentual exigido (50%/80%).',
+            'Relatos informais sem suporte documental.',
+            'Boas práticas restritas à própria célula sem compartilhamento.'
+        ]
     },
 
     # =========================================================
@@ -637,7 +852,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Nobreak sem laudo de manutenção preventiva = no máximo nota 3. Cobertura parcial dos equipamentos críticos (1 e A) reduz a nota. Nobreak instalado mas sem teste documentado não garante nota 4.'
-        )
+        ),
+        'fortalece': [
+            'Diagramas elétricos mostrando alimentação redundante.',
+            'Inventário de nobreaks com status de carga/bateria.',
+            'Relatório de manutenção preventiva (SAP/Laudos).',
+            'Evidência visual identificada (painel x nobreak).',
+            'Associação clara entre nobreak e ativos de TA críticos.'
+        ],
+        'enfraquece': [
+            'Foto de nobreak sem contexto ou identificação.',
+            'Nobreak instalado mas sem vínculo com ativos de TA.',
+            'Ausência de manutenção preventiva registrada (SAP).',
+            'Cobertura parcial (apenas parte da planta) para nota 3/4.'
+        ]
     },
 
     (5, 1): {
@@ -671,7 +899,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Lista de IPs desatualizada ou sem data = nota reduzida. Lista de IO sem vinculação com os equipamentos físicos = insuficiente. Sistemática de verificação via SAP exigida para nota 4.'
-        )
+        ),
+        'fortalece': [
+            'Lista de IPs e IO organizada e tecnicamente utilizável.',
+            'Sistemática de verificação automática ou via SAP.',
+            'Associação clara entre sinal (IO), equipamento e processo.',
+            'Relação atualizada de todos os dispositivos em rede.',
+            'Documentação padronizada e integrada ao controle da área.'
+        ],
+        'enfraquece': [
+            'Lista parcial ou desatualizada.',
+            'Prints isolados que não configuram controle estruturado.',
+            'Falta de vínculo entre a lista de IO e a realidade física.',
+            'Ausência de sistemática formal para manter os dados (nota 4).'
+        ]
     },
 
     (5, 2): {
@@ -709,7 +950,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Diagrama de rede sem data de atualização ou desatualizado = nota reduzida. Desenhos elétricos em papel sem versão digital não atingem nota 4. Diagrama que não reflete a topologia real é considerado inválido.'
-        )
+        ),
+        'fortalece': [
+            'Diagramas de rede detalhados (topologia, switches, segmentação).',
+            'Desenhos elétricos atualizados (Papel e Digital).',
+            'Documentação centralizada no Meridian (para nota 4).',
+            'Identificação clara de todos os ativos no diagrama.',
+            'Evidência de revisão periódica e vigência técnica.'
+        ],
+        'enfraquece': [
+            'Desenhos informais ou pouco legíveis.',
+            'Diagramas que não mostram as interligações reais.',
+            'Ausência de cópia digital atualizada.',
+            'Documentação dispersa sem controle centralizado.'
+        ]
     },
 
     (5, 3): {
@@ -743,7 +997,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Ativos sem data de fim de ciclo de vida = não atinge nota 3. Matriz de risco sem os ativos críticos de automação cadastrados = insuficiente. Plano de ação sem data e responsável = não aceito para nota 4.'
-        )
+        ),
+        'fortalece': [
+            'Mapa de obsolescência com datas de suporte dos fabricantes.',
+            'Inclusão de riscos de obsolescência na matriz de risco da unidade.',
+            'Plano de renovação tecnológica com cronograma e orçamento.',
+            'Associação entre criticidade do ativo e plano de troca.',
+            'Rastreabilidade total do ciclo de vida da base instalada.'
+        ],
+        'enfraquece': [
+            'Inventário sem informações de suporte/fim de vida.',
+            'Conhecimento de obsolescência apenas "tácito" (informal).',
+            'Falta de plano de ação para ativos críticos descontinuados.',
+            'Descolamento entre a matriz de risco e a realidade dos ativos.'
+        ]
     },
 
     # =========================================================
@@ -779,7 +1046,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Mapeamento parcial (somente equipamentos principais) = no máximo nota 2. Riscos não incluídos na matriz de gestão da unidade = nota reduzida. Atualização anual exigida — risco mapeado há mais de 12 meses = nota 3 no máximo.'
-        )
+        ),
+        'fortalece': [
+            'Matriz formal de riscos de TA (Causa, Impacto, Criticidade).',
+            'Inclusão sistemática na matriz de risco corporativa/da área.',
+            'Atualização semestral via SAP (para nota 4).',
+            'Abrangência cobrindo todos os ativos/sistemas relevantes.',
+            'Metodologia clara de pontuação de risco (Probabilidade x Severidade).'
+        ],
+        'enfraquece': [
+            'Identificação de riscos apenas verbal ou informal.',
+            'Riscos genéricos sem vínculo com a área auditada.',
+            'Falta de evidência de revisão/atualização (validade vencida).',
+            'Matriz de risco sem recorte específico para falhas de TA.'
+        ]
     },
 
     (6, 1): {
@@ -811,7 +1091,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Plano de contingência sem telefones de contato e tempo de impacto = no máximo nota 3. Contingência não testada = não atinge nota 4. Plano que não cobre todos os riscos levantados no 6.1 = insuficiente.'
-        )
+        ),
+        'fortalece': [
+            'Plano de contingência detalhado para cenários críticos.',
+            'Contatos de emergência e definição de tempos de impacto.',
+            'Fluxo de resposta a falhas documentado e utilizável.',
+            'Atualização sistemática no SIG/SAP.',
+            'Vínculo direto entre riscos identificados e planos de resposta.'
+        ],
+        'enfraquece': [
+            'Instruções incompletas (sem responsáveis ou fluxos).',
+            'Falta de definição de tempo de resposta/impacto.',
+            'Cenários de falha técnica sem plano de contingência operacional.',
+            'Contatos desatualizados ou ausentes.'
+        ]
     },
 
     # =========================================================
@@ -851,7 +1144,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Documento informal ou apenas verbal = não atinge nota 3. Fronteiras não definidas formalmente no SIG ou sistema equivalente = não atinge nota 4. Lista de demandas sem histórico de atendimento documentado prejudica a nota.'
-        )
+        ),
+        'fortalece': [
+            'Matriz de responsabilidades formal (TI x TA) assinada/aprovada.',
+            'Delimitação clara de escopo por sistema, ativo ou serviço.',
+            'Procedimento interno que formaliza a interface entre as áreas.',
+            'Acordos de Nível de Serviço (SLA) ou fluxo de escalonamento definidos.',
+            'Rastreabilidade de quem executa atividades críticas (ex: Backup, Acesso).'
+        ],
+        'enfraquece': [
+            'Relato de fronteira apenas "informal".',
+            'Organograma sem definição clara de responsabilidades técnicas.',
+            'Documento genérico corporativo sem recorte local.',
+            'Falta de clareza sobre "áreas cinzentas" (ativos compartilhados).'
+        ]
     },
 
     (7, 1): {
@@ -891,7 +1197,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Treinamento sem comprovação (certificado, lista de presença) = não válido. Documentação do projeto fora do sistema (ex.: somente e-mail) = não atinge nota 4. Integração parcial (somente um dos sistemas) = nota reduzida.'
-        )
+        ),
+        'fortalece': [
+            'Cronograma de projetos com participação de TI e TA.',
+            'Atas de reuniões de acompanhamento de projetos conjuntos.',
+            'Evidência de entregas técnicas integradas (infraestrutura, redes).',
+            'Planos de projeto aprovados por ambas as gerências.',
+            'Rastreabilidade de melhorias implementadas via interface TI/TA.'
+        ],
+        'enfraquece': [
+            'Interação apenas pontual para resolução de problemas (suporte).',
+            'Falta de evidência de pauta técnica integrada em projetos.',
+            'Projetos de TI que ignoram o impacto na TA e vice-versa.',
+            'Ausência de cronograma ou plano formal de projeto integrado.'
+        ]
     },
 
     # =========================================================
@@ -940,7 +1259,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Computadores obsoletos (SO fora de suporte) = nota reduzida automaticamente. Menos de 2 computadores por aplicativo de supervisório = não atinge nota 3. Inventário sem data de atualização ou desatualizado = insuficiente.'
-        )
+        ),
+        'fortalece': [
+            'Inventário atualizado de computadores/estações de TA.',
+            'Identificação clara por patrimônio, hostname e localização.',
+            'Vínculo definido entre o equipamento e sua função operacional.',
+            'Evidência de disponibilidade para manutenção/diagnóstico.',
+            'Rastreabilidade do ciclo de vida e estado do hardware.'
+        ],
+        'enfraquece': [
+            'Apenas foto de computador sem identificação ou contexto.',
+            'Lista de TI genérica sem recorte para a área de TA.',
+            'Hardware obsoleto ou sem suporte mas listado como operacional.',
+            'Falta de atualização do inventário de hardware.'
+        ]
     },
 
     (8, 1): {
@@ -972,7 +1304,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Servidor sem redundância de HD = não atinge nota 4. Servidor de backup no mesmo rack/sala = não atinge nota 4. Fonte redundante ausente nos equipamentos críticos = nota reduzida.'
-        )
+        ),
+        'fortalece': [
+            'Inventário formal de servidores (Físicos e Virtuais).',
+            'Mapeamento de funções/sistemas suportados por cada servidor.',
+            'Identificação por Hostname, IP e Ambiente.',
+            'Rastreabilidade de hardware/infraestrutura de virtualização.',
+            'Evidência de redundância e alta disponibilidade dos servidores.'
+        ],
+        'enfraquece': [
+            'Servidores citados apenas por nome informal.',
+            'Falta de inventário de VMs quando o ambiente é virtualizado.',
+            'Ausência de vínculo entre servidor e aplicação de TA.',
+            'Servidor desatualizado ou sem plano de suporte.'
+        ]
     },
 
     (8, 2): {
@@ -1013,7 +1358,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Arquitetura Standalone sem justificativa formal = não aceito. Teste de redundância sem procedimento e registro = não atinge nota 3. Teste realizado uma única vez sem periodicidade = no máximo nota 2.'
-        )
+        ),
+        'fortalece': [
+            'Relatórios formais de testes de redundância/failover.',
+            'Registro de data, cenário testado e resultado alcançado.',
+            'Checklist de comutação entre elementos redundantes.',
+            'Histórico de testes periódicos (bimestral/semestral).',
+            'Evidência de que o sistema operou corretamente em contingência.'
+        ],
+        'enfraquece': [
+            'Apenas prova de existência de redundância (sem teste).',
+            'Teste "assumido" por falta de falhas no período.',
+            'Relatos informais sem suporte documental (data/assinatura).',
+            'Teste desatualizado ou apenas pontual.'
+        ]
     },
 
     (8, 3): {
@@ -1049,7 +1407,20 @@ CRITERIOS = {
         },
         'armadilhas': (
             'Software sem licença válida = nota 0 automática (risco jurídico). Sistema operacional fora de suporte nos computadores principais = não atinge nota 4. IHM sem software de configuração disponível = reduz a nota.'
-        )
+        ),
+        'fortalece': [
+            'Inventário completo de softwares com versão e fabricante.',
+            'Relação de licenças vinculadas às estações/servidores.',
+            'Mapeamento de finalidade técnica para cada software listado.',
+            'Evidência de atualização/disponibilidade dos instaladores.',
+            'Rastreabilidade de ciclo de vida do software.'
+        ],
+        'enfraquece': [
+            'Lista de softwares sem identificação de versão técnica.',
+            'Softwares instalados mas sem registro de propriedade/licença.',
+            'Print de programas do Windows sem inventário estruturado.',
+            'Ausência de softwares críticos no mapeamento da área.'
+        ]
     },
 
     # =========================================================
