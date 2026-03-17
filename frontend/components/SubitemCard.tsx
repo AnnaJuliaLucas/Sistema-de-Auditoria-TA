@@ -202,7 +202,7 @@ export default function SubitemCard({
             showToast("✅ Arquivo enviado com sucesso!");
             
             // Refresh evidence list
-            const res = await fetch(`${API_BASE}/api/evidencias/${av.auditoria_id}/${av.pratica_num}/${av.subitem_idx}`);
+            const res = await fetch(`${API_BASE}/api/evidencias/${av.auditoria_id}/${av.pratica_num}/${av.subitem_idx}?refresh=true`);
             const data = await res.json();
             setEvidence(data);
         } catch (err: unknown) {
@@ -221,7 +221,7 @@ export default function SubitemCard({
             showToast("✅ Arquivo removido!");
             
             // Refresh evidence list
-            const res = await fetch(`${API_BASE}/api/evidencias/${av.auditoria_id}/${av.pratica_num}/${av.subitem_idx}`);
+            const res = await fetch(`${API_BASE}/api/evidencias/${av.auditoria_id}/${av.pratica_num}/${av.subitem_idx}?refresh=true`);
             const data = await res.json();
             setEvidence(data);
         } catch (err: unknown) {

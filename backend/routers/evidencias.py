@@ -207,19 +207,23 @@ def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, audit: dic
             log.info(f"Bypassing root folder wrapper: {items[0].name}")
             root = items[0]
             
+        log.info(f"Escaneando pasta de evidências: {root}")
         for pasta_pratica in sorted(root.iterdir()):
             if not pasta_pratica.is_dir():
                 continue
             m_p = re.match(r'^\[?(\d+)[\]\-_\s\.]', pasta_pratica.name)
             if not m_p:
+                log.debug(f"Pasta de prática ignorada (sem match regex): {pasta_pratica.name}")
                 continue
             p_num = int(m_p.group(1))
             
+            log.info(f"Prática encontrada: {p_num} ({pasta_pratica.name})")
             for pasta_sub in sorted(pasta_pratica.iterdir()):
                 if not pasta_sub.is_dir():
                     continue
                 m_s = re.match(r'^(\d+)\.(\d+)(?:[\s\-_\.]|$)', pasta_sub.name)
                 if not m_s:
+                    log.debug(f"  Subitem ignorado: {pasta_sub.name}")
                     continue
                 s_num = int(m_s.group(2)) - 1  # 0-based
                 
@@ -227,6 +231,7 @@ def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, audit: dic
                     str(f) for f in sorted(pasta_sub.rglob("*"))
                     if f.is_file() and f.suffix.lower() in EXTS_ALL
                 ]
+                log.info(f"  Subitem {s_num+1} ({pasta_sub.name}) -> {len(arquivos)} arquivos")
                 mapa[(p_num, s_num)] = arquivos
         
         _EVIDENCE_CACHE[ev_folder] = mapa
@@ -325,7 +330,7 @@ def get_all_evidences(auditoria_id: int, refresh: bool = False):
     return formatted
 
 @router.get("/{auditoria_id}/{pratica_num}/{subitem_idx}")
-def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int):
+def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int, refresh: bool = False):
     """List evidence files for a specific subitem."""
     aud = get_auditoria(auditoria_id)
     if not aud:
@@ -337,7 +342,7 @@ def list_evidences(auditoria_id: int, pratica_num: int, subitem_idx: int):
         return {}
 
     ev_folder = aud.get("evidence_folder_path", "") or ""
-    mapa = _get_or_build_evidence_map(ev_folder, audit=aud)
+    mapa = _get_or_build_evidence_map(ev_folder, refresh=refresh, audit=aud)
     files = mapa.get((pratica_num, subitem_idx), [])
 
     images = [f for f in files if Path(f).suffix.lower() in EXTS_IMG]
@@ -577,7 +582,7 @@ async def upload_granular(
     
     # Formatação de pasta para manter compatibilidade com o construtor do mapa
     # O mapa busca por "[1] NOME" ou "1. " para prática e "1.1 NOME" para subitem
-    p_folder_name = f"Pratica {pratica_num}"
+    p_folder_name = f"[{pratica_num}] Pratica {pratica_num}"
     s_folder_name = f"{pratica_num}.{subitem_idx + 1}"
     
     target_dir = evidences_dir / p_folder_name / s_folder_name
