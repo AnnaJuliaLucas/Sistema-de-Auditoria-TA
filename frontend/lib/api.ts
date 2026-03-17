@@ -305,6 +305,7 @@ export const DECISAO_CONFIG: Record<string, { icon: string; label: string; color
   permanece: { icon: "✅", label: "Nota permanece", color: "#16a34a", bg: "#dcfce7" },
   insuficiente: { icon: "⚠️", label: "Evidência insuficiente (−1)", color: "#ea580c", bg: "#ffedd5" },
   inexistente: { icon: "❌", label: "Evidência inexistente (→ 0)", color: "#dc2626", bg: "#fee2e2" },
+  aumentar: { icon: "📈", label: "Aumentar nota manual", color: "#3b82f6", bg: "#dbeafe" },
   pendente: { icon: "⏳", label: "Pendente", color: "#6b7280", bg: "#f3f4f6" },
 };
 
@@ -316,5 +317,9 @@ export function calcularNotaFinal(notaSa: number, decisao: string, notaLivre?: n
     return Math.max(0, notaSa - 1);
   }
   if (decisao === "inexistente") return 0;
+  if (decisao === "aumentar") {
+    if (notaLivre != null) return Math.min(4, Math.max(notaSa + 1, notaLivre));
+    return Math.min(4, notaSa + 1);
+  }
   return null; // pendente
 }

@@ -72,7 +72,7 @@ class AvaliacaoOut(BaseModel):
 
 
 class DecisaoUpdate(BaseModel):
-    decisao: str = Field(..., pattern="^(permanece|insuficiente|inexistente|pendente)$")
+    decisao: str = Field(..., pattern="^(permanece|insuficiente|inexistente|aumentar|pendente)$")
     nota_final: Optional[int] = Field(None, ge=0, le=4)
     descricao_nc: str = ""
     comentarios: str = ""

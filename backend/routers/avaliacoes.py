@@ -22,6 +22,10 @@ def calcular_nota_final(nota_sa: int, decisao: str, nota_livre: int = None) -> i
         return max(0, nota_sa - 1)
     if decisao == "inexistente":
         return 0
+    if decisao == "aumentar":
+        if nota_livre is not None:
+            return min(4, max(nota_sa + 1, int(nota_livre)))
+        return min(4, nota_sa + 1)
     return None  # pendente
 
 

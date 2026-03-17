@@ -94,6 +94,7 @@ export default function SubitemCard({
             if (decisao === "permanece") setComentarios("Nota permanece");
             else if (decisao === "inexistente") setComentarios("Nota passa para 0");
             else if (decisao === "insuficiente") setComentarios(nf != null ? `Nota passa para ${nf}` : "Evidência insuficiente");
+            else if (decisao === "aumentar") setComentarios(nf != null ? `Nota passa para ${nf}` : "Nota aumentada");
         }
     }, [decisao, notaLivre]);
 
@@ -157,7 +158,7 @@ export default function SubitemCard({
             await api.saveDecisao(av.id, {
                 decisao,
                 nota_final: notaFinal,
-                descricao_nc: (decisao === "insuficiente" || decisao === "inexistente") ? descNc : "",
+                descricao_nc: (decisao === "insuficiente" || decisao === "inexistente" || decisao === "aumentar") ? descNc : "",
                 comentarios,
             });
             showToast("✅ Decisão salva!");
@@ -854,10 +855,10 @@ export default function SubitemCard({
                                 </div>
 
                                 {/* Description NC */}
-                                {(decisao === "insuficiente" || decisao === "inexistente") && (
+                                {(decisao === "insuficiente" || decisao === "inexistente" || decisao === "aumentar") && (
                                     <div>
                                         <label className="text-sm text-slate-400 block mb-1.5">
-                                            📝 Descrição da Não Conformidade
+                                            {decisao === "aumentar" ? "📝 Justificativa do Aumento" : "📝 Descrição da Não Conformidade"}
                                         </label>
                                         <textarea
                                             value={descNc || effectiveDescNc}
