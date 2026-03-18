@@ -104,8 +104,13 @@ export default function SubitemCard({
         setDecisao(av.decisao || "pendente");
         setDescNc(av.descricao_nc || "");
         setComentarios(av.comentarios || "");
-        // If IA analyzed it, we definitely want to show it expanded or at least updated
-    }, [av.id, av.ia_status, av.decisao, av.descricao_nc, av.comentarios]);
+        // Sincroniza nota manual se a decisão for de alteração de nota
+        if (av.decisao === "insuficiente" || av.decisao === "aumentar") {
+            setNotaLivre(av.nota_final || null);
+        } else {
+            setNotaLivre(null);
+        }
+    }, [av.id, av.ia_status, av.decisao, av.descricao_nc, av.comentarios, av.nota_final]);
 
     // Load criteria on expand (Evidence is now passed as prop)
     useEffect(() => {

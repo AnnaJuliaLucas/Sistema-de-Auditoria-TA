@@ -647,7 +647,7 @@ def salvar_decisao(avaliacao_id: int, decisao: str, nota_final: Optional[int],
             (avaliacao_id,)
         ).fetchone()
         
-        ia_status = row.get("ia_status") if row else None
+        ia_status = row["ia_status"] if row else None
         if row:
             if row["decisao"] != decisao:
                 conn.execute("""
