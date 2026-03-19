@@ -1,10 +1,11 @@
 """
 routers/export.py — Excel export and new audit creation.
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from backend.db import get_db, get_auditoria, carregar_avaliacoes, _safe_int, USE_POSTGRES
+from backend.auth import get_current_user
 from datetime import datetime
 from pathlib import Path
 import tempfile
@@ -208,7 +209,8 @@ async def criar_auditoria(
     assessment_file: UploadFile = File(None),
     assessment_url: str = Form(""),
     evidence_zip: UploadFile = File(None),
-    evidence_url: str = Form("")
+    evidence_url: str = Form(""),
+    current_user: str = Depends(get_current_user)
 ):
     """Create audit skeleton and offload processing to background task."""
     now = datetime.now().isoformat()
@@ -218,11 +220,11 @@ async def criar_auditoria(
             INSERT INTO auditorias
                 (unidade, area, ciclo, data_criacao, data_atualizacao,
                  status, assessment_file_path, evidence_folder_path,
-                 openai_api_key, observacoes, modo_analise, ai_provider, ai_base_url)
-            VALUES (?,?,?,?,?,'em_andamento','','',?,?,?,'','')
+                 openai_api_key, observacoes, modo_analise, ai_provider, ai_base_url, auditado_por)
+            VALUES (?,?,?,?,?,'em_andamento','','',?,?,?,'','',?)
         """
         if USE_POSTGRES: q = q.replace("?", "%s")
-        conn.execute(q, (unidade, area, ciclo, now, now, openai_api_key, observacoes, modo_analise))
+        conn.execute(q, (unidade, area, ciclo, now, now, openai_api_key, observacoes, modo_analise, current_user))
         conn.commit()
         
         row = conn.execute("SELECT id FROM auditorias ORDER BY id DESC LIMIT 1").fetchone()
