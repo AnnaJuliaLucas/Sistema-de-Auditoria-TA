@@ -392,9 +392,43 @@ def _init_postgres():
                 data_atualizacao TEXT
             );
 
-            -- Migration: Add UNIQUE constraint to avaliacoes if it doesn't exist
+            -- Migration: Add IA columns to avaliacoes if they don't exist
             DO $$ 
             BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='ia_decisao') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN ia_decisao TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='ia_nota_sugerida') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN ia_nota_sugerida INTEGER;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='ia_confianca') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN ia_confianca TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='ia_pontos_atendidos') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN ia_pontos_atendidos TEXT DEFAULT '[]';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='ia_pontos_faltantes') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN ia_pontos_faltantes TEXT DEFAULT '[]';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='ia_analise_detalhada') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN ia_analise_detalhada TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='ia_status') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN ia_status TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='avaliacoes' AND column_name='data_atualizacao') THEN
+                    ALTER TABLE avaliacoes ADD COLUMN data_atualizacao TEXT;
+                END IF;
+
+                -- Migration: Add UNIQUE constraint to avaliacoes if it doesn't exist
                 IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
                                WHERE constraint_name='unique_audit_item' AND table_name='avaliacoes') THEN
                     ALTER TABLE avaliacoes ADD CONSTRAINT unique_audit_item UNIQUE (auditoria_id, pratica_num, subitem_idx);
