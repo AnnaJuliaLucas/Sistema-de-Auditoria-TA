@@ -374,6 +374,17 @@ def _init_postgres():
                     ALTER TABLE auditorias ADD COLUMN revisado_por TEXT DEFAULT '';
                 END IF;
 
+                -- Backfill auditado_por from audit_log (earliest user per audit)
+                UPDATE auditorias SET auditado_por = sub.usuario
+                FROM (
+                    SELECT DISTINCT ON (auditoria_id) auditoria_id, usuario
+                    FROM audit_log
+                    WHERE usuario IS NOT NULL AND usuario != '' AND usuario != 'auditor'
+                    ORDER BY auditoria_id, timestamp ASC
+                ) sub
+                WHERE auditorias.id = sub.auditoria_id
+                  AND (auditorias.auditado_por IS NULL OR auditorias.auditado_por = '');
+
                 -- Fix stuck 'openai' providers that should be falling back to global
                 UPDATE auditorias SET ai_provider = '' WHERE ai_provider = 'openai' AND (openai_api_key IS NULL OR openai_api_key = '');
             END $$;
