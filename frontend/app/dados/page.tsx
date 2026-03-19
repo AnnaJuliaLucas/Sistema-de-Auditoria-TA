@@ -221,7 +221,7 @@ function ComparativoTab({ auditorias }: { auditorias: Auditoria[] }) {
                                 {result.map((r, i) => (
                                     <tr key={i} className="hover:bg-slate-700/20 transition-colors">
                                         <td className="px-4 py-3 text-white">{r.pratica_num}. {cleanTitle(r.pratica_nome)}</td>
-                                        <td className="px-4 py-3 text-slate-300">{r.pratica_num}.{(r.subitem_idx ?? 0) + 1} {cleanTitle(r.subitem_nome)}</td>
+                                        <td className="px-4 py-3 text-slate-300">{r.pratica_num}.{(r.subitem_idx ?? 0) + 1}{cleanTitle(r.subitem_nome)}</td>
                                         <td className="px-4 py-3 text-slate-300 text-center">{r.nota_a ?? "—"}</td>
                                         <td className="px-4 py-3 text-slate-300 text-center">{r.nota_b ?? "—"}</td>
                                         <td className="px-4 py-3 text-center font-semibold" style={{

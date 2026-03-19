@@ -281,7 +281,7 @@ export default function SubitemCard({
                         <span className="font-semibold text-white text-sm">
                             {av.pratica_num}.{av.subitem_idx + 1}
                         </span>
-                        <span className="text-slate-300 text-sm ml-2">{cleanTitle(av.subitem_nome)}</span>
+                        <span className="text-slate-300 text-sm">{cleanTitle(av.subitem_nome)}</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
