@@ -155,47 +155,55 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
     if assessment_path and Path(assessment_path).exists():
         try:
             import openpyxl
+            import re
             wb = openpyxl.load_workbook(assessment_path, data_only=True)
             ws = wb.active
             with get_db() as conn:
                 current_p_num = None
                 s_idx_internal = 0
-                for row_cells in ws.iter_rows(min_row=2, values_only=True):
-                    # Se não tiver absolutamente nada em nenhuma das 9 primeiras colunas, pula.
-                    has_content = any(c is not None and str(c).strip() != "" for c in row_cells[:15])
-                    if not has_content: continue
+                for i, row_cells in enumerate(ws.iter_rows(min_row=1, values_only=True)):
+                    # Skip completely empty rows
+                    if not any(c is not None and str(c).strip() != "" for c in row_cells[:15]):
+                        continue
 
-                    # Detecta Prática
-                    if row_cells[0] and str(row_cells[0]).strip().isdigit():
-                        current_p_num = int(row_cells[0])
-                        s_idx_internal = 0
+                    # Improved Practice Detection (accepts "1", "1.0", "Prática 1", etc.)
+                    first_col = str(row_cells[0] or "").strip()
+                    p_match = re.search(r'(\d+)', first_col)
+                    if p_match and len(first_col) < 10: # Avoid matching numbers inside long text
+                        new_p = int(p_match.group(1))
+                        if new_p != current_p_num:
+                            current_p_num = new_p
+                            s_idx_internal = 0
+                            log.info(f"Audit {audit_id}: Detected Practice {current_p_num} at row {i+1}")
                     
-                    # Processa Subitem (mesmo se for na mesma linha da Prática)
-                    # Usamos a coluna C (índice 2) que contém a descrição do subitem/evidência
+                    # Process Subitem
+                    # Criteria: current_p_num is set AND column C (index 2) has content AND not a header
                     if current_p_num is not None and len(row_cells) > 2 and row_cells[2]:
-                        # Coluna I (índice 8). 
+                        desc_c = str(row_cells[2]).strip().upper()
+                        desc_b = str(row_cells[1] or "").strip().upper()
+                        
+                        # Skip if it looks like a header
+                        if desc_c in ("EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO") or desc_b in ("PRÁTICA", "REQUISITO"):
+                            continue
+                            
+                        # Coluna I (índice 8)
                         if len(row_cells) > 8:
                             val_raw = row_cells[8]
-                            is_header_row = False
-                            # Ignora se for a linha de cabeçalho "NOTA ITEM" ou similar
-                            if val_raw is not None and str(val_raw).strip().upper() == "NOTA ITEM":
-                                is_header_row = True
-                            if str(row_cells[1]).strip().upper() == "PRÁTICA" or str(row_cells[2]).strip().upper() == "EVIDÊNCIA":
-                                is_header_row = True
-                                
-                            if not is_header_row:
-                                nota_sa = _safe_int(val_raw)
-                                log.info(f"Audit {audit_id}: P{current_p_num} S{s_idx_internal} -> Raw Col I: '{val_raw}' -> Nota SA: {nota_sa}")
-                                conn.execute("""
-                                    UPDATE avaliacoes
-                                    SET nota_self_assessment=?
-                                    WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
-                                """, (nota_sa, audit_id, current_p_num, s_idx_internal))
-                                s_idx_internal += 1
+                            nota_sa = _safe_int(val_raw)
+                            
+                            # Only update if we actually got a value or if the row is clearly a subitem row
+                            # We update even if nota_sa is None to clear defaults, but usually we want to see it
+                            conn.execute("""
+                                UPDATE avaliacoes
+                                SET nota_self_assessment=?
+                                WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
+                            """, (nota_sa, audit_id, current_p_num, s_idx_internal))
+                            s_idx_internal += 1
                 conn.commit()
-            log.info(f"Background Excel SA sync complete for audit {audit_id}. (Column I used)")
+            log.info(f"Background Excel SA sync complete for audit {audit_id}. Rows processed: {i+1}")
         except Exception as e:
-            log.error(f"Background Excel sync failed: {e}")
+            log.error(f"Background Excel sync failed for audit {audit_id}: {e}")
+            log.error(traceback.format_exc())
 
 @router.post("/auditorias")
 async def criar_auditoria(

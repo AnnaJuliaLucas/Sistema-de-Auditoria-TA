@@ -637,34 +637,62 @@ def storage_cleanup():
             
     log.info(f"Cleanup finished: {results}")
     return results
-@router.get("/inspect")
-def inspect_path(path: str = "/app/data", read_file: bool = False):
-    """Generic directory listing or file reading for troubleshooting."""
-    from pathlib import Path
+@router.get("/fix-audit/{audit_id}")
+def fix_audit_manual(audit_id: int):
+    """Manually trigger background processing and backfill for a specific audit."""
+    from backend.db import get_auditoria, get_db
+    from backend.routers.export import process_heavy_files
+    import threading
+    
+    aud = get_auditoria(audit_id)
+    if not aud:
+        return {"error": "Audit not found"}
+        
+    # Trigger background processing again (will re-sync Excel)
+    # We pass None for bytes to force it to use the files already on disk
     try:
-        p = Path(path)
-        if not p.exists():
-            return {"error": f"Path not found: {path}"}
-        
-        if p.is_file() and read_file:
-            return {"path": str(p), "content": p.read_text(errors='replace')}
+        # Re-run backfill for this audit first
+        with get_db() as conn:
+            first_user = conn.execute(
+                "SELECT usuario FROM audit_log WHERE auditoria_id=? AND usuario IS NOT NULL AND usuario != '' AND usuario != 'auditor' ORDER BY timestamp ASC LIMIT 1",
+                (audit_id,)
+            ).fetchone()
+            if first_user:
+                usr = first_user[0] if not isinstance(first_user, dict) else first_user["usuario"]
+                conn.execute("UPDATE auditorias SET auditado_por=? WHERE id=?", (usr, audit_id))
+            conn.commit()
 
-        details = {
-            "path": str(p),
-            "exists": p.exists(),
-            "is_dir": p.is_dir(),
-            "is_file": p.is_file(),
-            "items": []
-        }
+        # Run file processing in a thread (since we don't have background_tasks here)
+        # We use a thread to avoid blocking the response
+        t = threading.Thread(
+            target=process_heavy_files,
+            args=(audit_id, aud.get("assessment_file_path"), aud.get("evidence_zip_url"), None, None)
+        )
+        t.start()
         
-        if p.is_dir():
-            for item in p.iterdir():
-                details["items"].append({
-                    "name": item.name,
-                    "is_dir": item.is_dir(),
-                    "size": item.stat().st_size if item.is_file() else 0
-                })
-        
-        return details
+        return {"status": "success", "message": f"Repair started for audit {audit_id}. Excel sync and backfill are running."}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
+@router.get("/backfill-all")
+def backfill_all_audits():
+    """Triggers the responsibility backfill for all audits from audit_log."""
+    from backend.db import get_db
+    try:
+        updated = 0
+        with get_db() as conn:
+            audits = conn.execute("SELECT id FROM auditorias WHERE auditado_por IS NULL OR auditado_por = ''").fetchall()
+            for row in audits:
+                aid = row[0] if not isinstance(row, dict) else row["id"]
+                first_user = conn.execute(
+                    "SELECT usuario FROM audit_log WHERE auditoria_id=? AND usuario IS NOT NULL AND usuario != '' AND usuario != 'auditor' ORDER BY timestamp ASC LIMIT 1",
+                    (aid,)
+                ).fetchone()
+                if first_user:
+                    usr = first_user[0] if not isinstance(first_user, dict) else first_user["usuario"]
+                    conn.execute("UPDATE auditorias SET auditado_por=? WHERE id=?", (usr, aid))
+                    updated += 1
+            conn.commit()
+        return {"status": "success", "updated_count": updated}
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
