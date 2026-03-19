@@ -306,6 +306,26 @@ def init_db():
                 conn.execute("UPDATE auditorias SET ai_provider = '' WHERE ai_provider = 'openai' AND (openai_api_key IS NULL OR openai_api_key = '')")
                 conn.commit()
                 log.info("SQLite defensive cleanup: cleared 'openai' from audits without keys")
+                
+                # --- BACKFILL auditado_por from audit_log ---
+                # For existing audits without auditado_por, find the earliest user from audit_log
+                try:
+                    audits_without = conn.execute(
+                        "SELECT id FROM auditorias WHERE auditado_por IS NULL OR auditado_por = ''"
+                    ).fetchall()
+                    for aud_row in audits_without:
+                        aid = aud_row[0] if not isinstance(aud_row, dict) else aud_row["id"]
+                        first_user = conn.execute(
+                            "SELECT usuario FROM audit_log WHERE auditoria_id=? AND usuario IS NOT NULL AND usuario != '' AND usuario != 'auditor' ORDER BY timestamp ASC LIMIT 1",
+                            (aid,)
+                        ).fetchone()
+                        if first_user:
+                            usr = first_user[0] if not isinstance(first_user, dict) else first_user["usuario"]
+                            conn.execute("UPDATE auditorias SET auditado_por=? WHERE id=?", (usr, aid))
+                    conn.commit()
+                    log.info(f"SQLite backfill: checked {len(audits_without)} audits for auditado_por")
+                except Exception as bf_err:
+                    log.warning(f"SQLite backfill auditado_por failed: {bf_err}")
         except Exception as repair_err:
             log.warning(f"Failed to perform defensive migration: {repair_err}")
 
