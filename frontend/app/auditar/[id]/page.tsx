@@ -6,6 +6,7 @@ import { api, Auditoria, Pratica } from "@/lib/api";
 import Link from "next/link";
 import SubitemCard from "@/components/SubitemCard";
 import NotaBadge from "@/components/NotaBadge";
+import { cleanTitle } from "@/lib/utils";
 
 export default function AuditarPage() {
     const { id } = useParams<{ id: string }>();
@@ -396,7 +397,7 @@ export default function AuditarPage() {
                                     </span>
                                     <div>
                                         <h3 className="font-bold text-white">
-                                            {pratica.pratica_num}. {pratica.pratica_nome}
+                                            {pratica.pratica_num}. {cleanTitle(pratica.pratica_nome)}
                                         </h3>
                                         <p className="text-xs text-slate-400 mt-0.5">
                                             SA: {pratica.media_sa} → Final: {pratica.media_final?.toFixed(1) ?? "⏳"}
