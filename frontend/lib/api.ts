@@ -69,6 +69,8 @@ export interface Auditoria {
   ai_base_url?: string;
   observacoes?: string;
   modo_analise: "completo" | "economico";
+  auditado_por?: string;
+  revisado_por?: string;
 }
 
 export interface Avaliacao {

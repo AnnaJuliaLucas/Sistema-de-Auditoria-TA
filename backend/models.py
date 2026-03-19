@@ -26,6 +26,8 @@ class AuditoriaOut(BaseModel):
     media_nota_final: Optional[float] = None
     ia_analisados: int = 0
     modo_analise: str = "completo"
+    auditado_por: Optional[str] = None
+    revisado_por: Optional[str] = None
 
 
 class AuditoriaConfig(BaseModel):

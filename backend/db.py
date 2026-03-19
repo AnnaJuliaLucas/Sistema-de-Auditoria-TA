@@ -286,7 +286,9 @@ def init_db():
                 for col_name, col_type in [("evidence_map", "TEXT DEFAULT '{}'"), 
                                            ("evidence_zip_url", "TEXT DEFAULT ''"),
                                            ("ai_provider", "TEXT DEFAULT ''"),
-                                           ("ai_base_url", "TEXT DEFAULT ''")]:
+                                           ("ai_base_url", "TEXT DEFAULT ''"),
+                                           ("auditado_por", "TEXT DEFAULT ''"),
+                                           ("revisado_por", "TEXT DEFAULT ''")]:
                     try:
                         conn.execute(f"ALTER TABLE auditorias ADD COLUMN {col_name} {col_type}")
                     except sqlite3.OperationalError:
@@ -333,6 +335,8 @@ def _init_postgres():
                 observacoes TEXT DEFAULT '',
                 evidence_map TEXT DEFAULT '{}',
                 evidence_zip_url TEXT DEFAULT '',
+                auditado_por TEXT DEFAULT '',
+                revisado_por TEXT DEFAULT '',
                 UNIQUE(unidade, area, ciclo)
             );
 
@@ -359,6 +363,16 @@ def _init_postgres():
                 -- Ensure defaults are correct even if columns already existed
                 ALTER TABLE auditorias ALTER COLUMN ai_provider SET DEFAULT '';
                 ALTER TABLE auditorias ALTER COLUMN ai_base_url SET DEFAULT '';
+
+                -- Migration: Add auditado_por and revisado_por columns
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='auditorias' AND column_name='auditado_por') THEN
+                    ALTER TABLE auditorias ADD COLUMN auditado_por TEXT DEFAULT '';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='auditorias' AND column_name='revisado_por') THEN
+                    ALTER TABLE auditorias ADD COLUMN revisado_por TEXT DEFAULT '';
+                END IF;
 
                 -- Fix stuck 'openai' providers that should be falling back to global
                 UPDATE auditorias SET ai_provider = '' WHERE ai_provider = 'openai' AND (openai_api_key IS NULL OR openai_api_key = '');
@@ -589,7 +603,8 @@ def listar_auditorias() -> list[dict]:
             GROUP BY a.id, a.unidade, a.area, a.ciclo, a.data_criacao,
                      a.data_atualizacao, a.status, a.assessment_file_path,
                      a.evidence_folder_path, a.openai_api_key, a.observacoes, a.modo_analise,
-                     a.ai_provider, a.ai_base_url, a.evidence_map, a.evidence_zip_url
+                     a.ai_provider, a.ai_base_url, a.evidence_map, a.evidence_zip_url,
+                     a.auditado_por, a.revisado_por
             ORDER BY a.ciclo DESC, a.unidade, a.area
         """).fetchall()
         return [dict(r) for r in rows]
@@ -707,6 +722,34 @@ def salvar_decisao(avaliacao_id: int, decisao: str, nota_final: Optional[int],
                 "UPDATE auditorias SET data_atualizacao=? WHERE id=?",
                 (now, row["auditoria_id"])
             )
+            
+            # --- RESPONSABILITY TRACKING ---
+            # Track who audited and who revised this audit
+            if usuario and usuario != "auditor" and decisao != 'pendente':
+                aud = conn.execute(
+                    "SELECT auditado_por, revisado_por, status FROM auditorias WHERE id=?",
+                    (row["auditoria_id"],)
+                ).fetchone()
+                if aud:
+                    auditado_por = (aud["auditado_por"] or "").strip()
+                    revisado_por = (aud["revisado_por"] or "").strip()
+                    status_aud = aud["status"] or "em_andamento"
+                    
+                    if not auditado_por:
+                        # First person to make a decision is the auditor
+                        conn.execute(
+                            "UPDATE auditorias SET auditado_por=? WHERE id=?",
+                            (usuario, row["auditoria_id"])
+                        )
+                    elif status_aud in ("concluida", "em_revisao", "aprovada"):
+                        # If audit is complete and someone else is modifying, they're a reviewer
+                        existing_reviewers = [r.strip() for r in revisado_por.split(",") if r.strip()]
+                        if usuario not in existing_reviewers:
+                            existing_reviewers.append(usuario)
+                            conn.execute(
+                                "UPDATE auditorias SET revisado_por=? WHERE id=?",
+                                (", ".join(existing_reviewers), row["auditoria_id"])
+                            )
             
             # --- AI LEARNING INDEXING ---
             # Indexamos a decisão do auditor na base de conhecimento para que o agente consulte no futuro.

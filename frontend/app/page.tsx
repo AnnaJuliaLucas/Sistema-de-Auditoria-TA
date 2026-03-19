@@ -12,6 +12,22 @@ const STATUS_CONFIG: Record<string, { icon: string; label: string; color: string
   arquivada: { icon: "📁", label: "Arquivada", color: "#6b7280" },
 };
 
+/** Extract a friendly display name from an email like anna@automateasy.com.br → Anna */
+function formatUserName(email: string): string {
+  const name = email.split("@")[0];
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/** Format a comma-separated list of emails into friendly names */
+function formatUserNames(emails: string): string {
+  return emails
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean)
+    .map(formatUserName)
+    .join(" e ");
+}
+
 export default function HomePage() {
   const [auditorias, setAuditorias] = useState<Auditoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,6 +152,24 @@ export default function HomePage() {
                       </span></span>
                     )}
                   </div>
+
+                  {/* Responsibility Labels */}
+                  {(aud.auditado_por || aud.revisado_por) && (
+                    <div className="mt-3 pt-3 border-t border-slate-700/50 flex flex-wrap gap-2">
+                      {aud.auditado_por && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full"
+                          style={{ background: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}>
+                          👤 Auditado por: {formatUserNames(aud.auditado_por)}
+                        </span>
+                      )}
+                      {aud.revisado_por && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full"
+                          style={{ background: "rgba(245,158,11,0.12)", color: "#fcd34d", border: "1px solid rgba(245,158,11,0.25)" }}>
+                          🔍 Revisado por: {formatUserNames(aud.revisado_por)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </Link>
             );
