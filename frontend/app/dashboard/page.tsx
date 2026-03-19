@@ -14,6 +14,7 @@ interface ResumoGeral {
 }
 
 interface DistItem { nota_final?: number; decisao?: string; count: number; }
+import { cleanTitle } from '@/lib/utils';
 interface PraticaMedia { pratica_num: number; pratica_nome: string; media_sa: number; media_final: number | null; total: number; avaliados: number; }
 
 export default function DashboardPage() {
@@ -163,7 +164,7 @@ export default function DashboardPage() {
                             {safePraticaMedias.map(p => (
                                 <tr key={p.pratica_num} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
                                     <td className="py-3 px-4 text-white font-medium">
-                                        {p.pratica_num}. {p.pratica_nome}
+                                        {p.pratica_num}. {cleanTitle(p.pratica_nome)}
                                     </td>
                                     <td className="py-3 px-4 text-center">
                                         <NotaBadge nota={Math.round(p.media_sa)} size="sm" showLabel={false} />
