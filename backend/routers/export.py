@@ -413,16 +413,24 @@ def exportar_excel(auditoria_id: int):
     # 3. Content
     current_p_num = None
     row_idx = 3
+    import re
     
     for av in df:
         p_num = av.get('pratica_num')
-        p_nome = av.get('pratica_nome', '')
+        p_nome = str(av.get('pratica_nome', '')).strip()
         
         # New Practice Header Row
         if p_num != current_p_num:
             current_p_num = p_num
             ws.merge_cells(f'A{row_idx}:F{row_idx}')
-            cell = ws.cell(row=row_idx, column=1, value=f"{p_num} - {p_nome.upper()}")
+            
+            # Clean p_nome to avoid double numbering (e.g., "1 - 1 - ROTINAS")
+            p_label = p_nome.upper()
+            # If it already starts with "N - " or "N – " or just "N", clean it
+            p_label = re.sub(r'^\d+[\s\-\–]*', '', p_label).strip()
+            p_full_label = f"{p_num} - {p_label}"
+            
+            cell = ws.cell(row=row_idx, column=1, value=p_full_label)
             cell.fill = practice_fill
             cell.font = navy_bold_font
             cell.alignment = Alignment(vertical="center", indent=1)
@@ -445,8 +453,22 @@ def exportar_excel(auditoria_id: int):
         if status == "Diminui":
             tipo_nc = "Evidências insuficiente"
             
+        # Subitem Description refinement
+        # User wants "A unidade deverá mostrar..." instead of "1.1 - Backup..."
+        s_nome = str(av.get('subitem_nome', '')).strip()
+        s_desc = str(av.get('evidencia_descricao', '')).strip()
+        
+        # Logic: If s_nome contains the "A unidade..." text, use it. 
+        # Otherwise, try s_desc. If both fail, use s_nome but strip numbering.
+        final_desc = s_nome
+        if "UNIDADE DEVERÁ" in s_desc.upper() or len(s_desc) > len(s_nome):
+            final_desc = s_desc.split('\n')[0].strip() # Take first line/summary
+            
+        # Strip leading "1.1 - " or similar
+        final_desc = re.sub(r'^\d+\.\d+[\s\-\–]*', '', final_desc).strip()
+        
         vals = [
-            av.get('subitem_nome', ''),
+            final_desc,
             nota_sa if nota_sa is not None else '',
             status,
             tipo_nc,
