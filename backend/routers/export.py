@@ -454,18 +454,11 @@ def exportar_excel(auditoria_id: int):
             tipo_nc = "Evidências insuficiente"
             
         # Subitem Description refinement
-        # User wants "A unidade deverá mostrar..." instead of "1.1 - Backup..."
+        # User wants only the short name without the number (e.g. "Backup..." instead of "1.1 - Backup...")
         s_nome = str(av.get('subitem_nome', '')).strip()
-        s_desc = str(av.get('evidencia_descricao', '')).strip()
         
-        # Logic: If s_nome contains the "A unidade..." text, use it. 
-        # Otherwise, try s_desc. If both fail, use s_nome but strip numbering.
-        final_desc = s_nome
-        if "UNIDADE DEVERÁ" in s_desc.upper() or len(s_desc) > len(s_nome):
-            final_desc = s_desc.split('\n')[0].strip() # Take first line/summary
-            
         # Strip leading "1.1 - " or similar
-        final_desc = re.sub(r'^\d+\.\d+[\s\-\–]*', '', final_desc).strip()
+        final_desc = re.sub(r'^\d+\.\d+[\s\-\–]*', '', s_nome).strip()
         
         vals = [
             final_desc,
