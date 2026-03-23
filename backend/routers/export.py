@@ -374,6 +374,7 @@ def exportar_excel(auditoria_id: int):
     red_status_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
     green_status_fill = PatternFill(start_color="00B050", end_color="00B050", fill_type="solid")
     yellow_nc_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    orange_nc_fill = PatternFill(start_color="FFC000", end_color="FFC000", fill_type="solid")
     
     white_bold_font = Font(name='Arial', size=10, bold=True, color="FFFFFF")
     navy_bold_font = Font(name='Arial', size=10, bold=True, color="002060")
@@ -387,7 +388,7 @@ def exportar_excel(auditoria_id: int):
     )
     
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    top_left_align = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    left_centered_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
     # 1. Main Title (Row 1)
     title_text = f"FORMULÁRIO PARA ANÁLISE DAS NOTAS DO SELF ASSESSMENT DA {aud['area'].upper()} DE {aud['unidade'].upper()}"
@@ -440,9 +441,9 @@ def exportar_excel(auditoria_id: int):
             if nota_f < nota_sa: status = "Diminui"
             elif nota_f > nota_sa: status = "Aumenta"
             
-        tipo_nc = ""
+        tipo_nc = "Não se aplica"
         if status == "Diminui":
-            tipo_nc = "Evidências insuficiente" # Padrão para diminuição
+            tipo_nc = "Evidências insuficiente"
             
         vals = [
             av.get('subitem_nome', ''),
@@ -457,7 +458,7 @@ def exportar_excel(auditoria_id: int):
         for ci, cell in enumerate(ws[row_idx], 1):
             cell.font = black_normal_font
             cell.border = thin_border
-            cell.alignment = top_left_align if ci in [1, 5, 6] else center_align
+            cell.alignment = left_centered_align if ci in [1, 5, 6] else center_align
             
             # Conditional Styling for Status (Column C)
             if ci == 3:
@@ -469,8 +470,11 @@ def exportar_excel(auditoria_id: int):
                     cell.font = white_bold_font
             
             # Conditional Styling for Tipo NC (Column D)
-            if ci == 4 and vals[2] == "Diminui":
-                cell.fill = yellow_nc_fill
+            if ci == 4:
+                if vals[2] == "Diminui":
+                    cell.fill = yellow_nc_fill
+                else:
+                    cell.fill = orange_nc_fill
                 
         row_idx += 1
 
