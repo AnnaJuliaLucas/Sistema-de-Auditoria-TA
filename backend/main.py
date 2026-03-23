@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sistema de Auditoria TA - Backend API",
     description="API para o Sistema de Auditoria de Automação Industrial",
-    version="2.1.7",
+    version="2.1.8",
     lifespan=lifespan,
 )
 

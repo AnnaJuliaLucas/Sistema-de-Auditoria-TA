@@ -352,11 +352,10 @@ def importar_assessment(auditoria_id: int, assessment_path: str = ""):
 
 @router.get("/auditorias/{auditoria_id}/exportar-excel")
 def exportar_excel(auditoria_id: int):
-    """Export audit results matching the 'Integrated Report' (Auditoria_teste.xlsx) format."""
+    """Export audit results exactly matching the 'Integrated Report' (Auditoria_teste.xlsx) format."""
     aud = get_auditoria(auditoria_id)
     if not aud: raise HTTPException(status_code=404, detail="Não encontrado")
     
-    # Load and order by practice/subitem index
     df = carregar_avaliacoes(auditoria_id)
     df.sort(key=lambda x: (x.get('pratica_num') or 0, x.get('subitem_idx') or 0))
     
@@ -367,24 +366,28 @@ def exportar_excel(auditoria_id: int):
     ws = wb.active
     ws.title = "Análise de Auditoria"
     
-    # Define Styles
+    # Precise Style Definitions
     title_fill = PatternFill(start_color="002060", end_color="002060", fill_type="solid")
-    header_fill = PatternFill(start_color="002060", end_color="002060", fill_type="solid")
+    header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
     practice_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
     
-    red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-    green_fill = PatternFill(start_color="00B050", end_color="00B050", fill_type="solid")
-    yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    red_status_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+    green_status_fill = PatternFill(start_color="00B050", end_color="00B050", fill_type="solid")
+    yellow_nc_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
     
-    white_font = Font(color="FFFFFF", bold=True)
-    bold_font = Font(bold=True)
-    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    left_align = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    white_bold_font = Font(name='Arial', size=10, bold=True, color="FFFFFF")
+    navy_bold_font = Font(name='Arial', size=10, bold=True, color="002060")
+    black_bold_font = Font(name='Arial', size=10, bold=True, color="000000")
+    black_normal_font = Font(name='Arial', size=10, color="000000")
+    title_font = Font(name='Arial', size=14, bold=True, color="FFFFFF")
     
     thin_border = Border(
         left=Side(style='thin'), right=Side(style='thin'), 
         top=Side(style='thin'), bottom=Side(style='thin')
     )
+    
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    top_left_align = Alignment(horizontal="left", vertical="top", wrap_text=True)
 
     # 1. Main Title (Row 1)
     title_text = f"FORMULÁRIO PARA ANÁLISE DAS NOTAS DO SELF ASSESSMENT DA {aud['area'].upper()} DE {aud['unidade'].upper()}"
@@ -392,7 +395,7 @@ def exportar_excel(auditoria_id: int):
     cell_a1 = ws['A1']
     cell_a1.value = title_text
     cell_a1.fill = title_fill
-    cell_a1.font = white_font
+    cell_a1.font = title_font
     cell_a1.alignment = center_align
     ws.row_dimensions[1].height = 40
 
@@ -401,7 +404,7 @@ def exportar_excel(auditoria_id: int):
     ws.append(headers)
     for cell in ws[2]:
         cell.fill = header_fill
-        cell.font = white_font
+        cell.font = black_bold_font
         cell.alignment = center_align
         cell.border = thin_border
     ws.row_dimensions[2].height = 30
@@ -418,67 +421,68 @@ def exportar_excel(auditoria_id: int):
         if p_num != current_p_num:
             current_p_num = p_num
             ws.merge_cells(f'A{row_idx}:F{row_idx}')
-            p_cell = ws.cell(row=row_idx, column=1)
-            p_cell.value = f"{p_num} - {p_nome.upper()}"
-            p_cell.fill = practice_fill
-            p_cell.font = bold_font
-            p_cell.border = thin_border
+            cell = ws.cell(row=row_idx, column=1, value=f"{p_num} - {p_nome.upper()}")
+            cell.fill = practice_fill
+            cell.font = navy_bold_font
+            cell.alignment = Alignment(vertical="center", indent=1)
+            for c in range(1, 7):
+                ws.cell(row=row_idx, column=c).border = thin_border
+            ws.row_dimensions[row_idx].height = 25
             row_idx += 1
-
+        
         # Subitem Data Row
         nota_sa = av.get('nota_self_assessment')
-        nota_final = av.get('nota_final')
+        nota_f = av.get('nota_final')
         
-        # Determine Status
+        # Determinando o Status da Nota
         status = "Permanece"
-        if nota_final is not None and nota_sa is not None:
-            if nota_final < nota_sa: status = "Diminui"
-            elif nota_final > nota_sa: status = "Aumentar"
-        
-        # Determine NC Type (Simple heuristic: if decision is NC or comment has 'NC')
-        nc_tipo = av.get('nc_tipo', '') # Custom field in some schemas
-        if not nc_tipo and av.get('decisao') == 'nao_conforme':
-            nc_tipo = "Evidências insuficiente" # Default name matching image
-
+        if nota_f is not None and nota_sa is not None:
+            if nota_f < nota_sa: status = "Diminui"
+            elif nota_f > nota_sa: status = "Aumenta"
+            
+        tipo_nc = ""
+        if status == "Diminui":
+            tipo_nc = "Evidências insuficiente" # Padrão para diminuição
+            
         vals = [
-            av.get('subitem_nome') or "",
-            nota_final if nota_final is not None else nota_sa,
+            av.get('subitem_nome', ''),
+            nota_sa if nota_sa is not None else '',
             status,
-            nc_tipo if status == "Diminui" else "Não se aplica",
-            av.get('analise_ia') or av.get('evidencia_descricao') or "", # IA Analysis often matches the image's description
-            av.get('comentarios') or ""
+            tipo_nc,
+            av.get('descricao_nc', '') or '',
+            av.get('comentarios', '') or ''
         ]
         
         ws.append(vals)
-        for col_i, cell in enumerate(ws[row_idx], 1):
+        for ci, cell in enumerate(ws[row_idx], 1):
+            cell.font = black_normal_font
             cell.border = thin_border
-            cell.alignment = left_align
+            cell.alignment = top_left_align if ci in [1, 5, 6] else center_align
             
-            # Status Coloring (Column C/3)
-            if col_i == 3:
-                cell.alignment = center_align
-                cell.font = Font(color="FFFFFF", bold=True)
-                if status == "Diminui": cell.fill = red_fill
-                elif status == "Aumentar": cell.fill = green_fill
+            # Conditional Styling for Status (Column C)
+            if ci == 3:
+                if vals[2] == "Diminui":
+                    cell.fill = red_status_fill
+                    cell.font = white_bold_font
+                elif vals[2] in ["Permanece", "Mantém", "Manter", "Aumenta", "Melhora"]:
+                    cell.fill = green_status_fill
+                    cell.font = white_bold_font
             
-            # NC Type Coloring (Column D/4)
-            if col_i == 4 and status == "Diminui":
-                cell.fill = yellow_fill
-                cell.alignment = center_align
-        
+            # Conditional Styling for Tipo NC (Column D)
+            if ci == 4 and vals[2] == "Diminui":
+                cell.fill = yellow_nc_fill
+                
         row_idx += 1
 
-    # 4. Column Widths
-    ws.column_dimensions['A'].width = 45 # PRÁTICAS
-    ws.column_dimensions['B'].width = 8  # Nota
-    ws.column_dimensions['C'].width = 15 # Status
-    ws.column_dimensions['D'].width = 25 # Tipo NC
-    ws.column_dimensions['E'].width = 70 # Descrição
-    ws.column_dimensions['F'].width = 35 # Comentários
+    # Column Widths
+    widths = [67, 17, 18, 28, 93, 107]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
     wb.save(tmp.name)
     tmp.close()
+    
     return FileResponse(tmp.name, filename=f"Relatorio_{auditoria_id}_{aud['unidade']}_{aud['area']}.xlsx")
 
 @router.get("/unidades-areas")
