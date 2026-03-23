@@ -155,55 +155,129 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
     if assessment_path and Path(assessment_path).exists():
         try:
             import openpyxl
-            import re
             wb = openpyxl.load_workbook(assessment_path, data_only=True)
             ws = wb.active
-            with get_db() as conn:
-                current_p_num = None
-                s_idx_internal = 0
-                for i, row_cells in enumerate(ws.iter_rows(min_row=1, values_only=True)):
-                    # Skip completely empty rows
-                    if not any(c is not None and str(c).strip() != "" for c in row_cells[:15]):
-                        continue
-
-                    # Improved Practice Detection (accepts "1", "1.0", "Prática 1", etc.)
-                    first_col = str(row_cells[0] or "").strip()
-                    p_match = re.search(r'(\d+)', first_col)
-                    if p_match and len(first_col) < 10: # Avoid matching numbers inside long text
-                        new_p = int(p_match.group(1))
-                        if new_p != current_p_num:
-                            current_p_num = new_p
-                            s_idx_internal = 0
-                            log.info(f"Audit {audit_id}: Detected Practice {current_p_num} at row {i+1}")
-                    
-                    # Process Subitem
-                    # Criteria: current_p_num is set AND column C (index 2) has content AND not a header
-                    if current_p_num is not None and len(row_cells) > 2 and row_cells[2]:
-                        desc_c = str(row_cells[2]).strip().upper()
-                        desc_b = str(row_cells[1] or "").strip().upper()
-                        
-                        # Skip if it looks like a header
-                        if desc_c in ("EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO") or desc_b in ("PRÁTICA", "REQUISITO"):
-                            continue
-                            
-                        # Coluna I (índice 8)
-                        if len(row_cells) > 8:
-                            val_raw = row_cells[8]
-                            nota_sa = _safe_int(val_raw)
-                            
-                            # Only update if we actually got a value or if the row is clearly a subitem row
-                            # We update even if nota_sa is None to clear defaults, but usually we want to see it
-                            conn.execute("""
-                                UPDATE avaliacoes
-                                SET nota_self_assessment=?
-                                WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
-                            """, (nota_sa, audit_id, current_p_num, s_idx_internal))
-                            s_idx_internal += 1
-                conn.commit()
-            log.info(f"Background Excel SA sync complete for audit {audit_id}. Rows processed: {i+1}")
+            _parse_assessment_sheet(ws, audit_id)
         except Exception as e:
             log.error(f"Background Excel sync failed for audit {audit_id}: {e}")
-            log.error(traceback.format_exc())
+
+def _parse_assessment_sheet(ws, audit_id: int):
+    """
+    Robustly parses the assessment worksheet to extract SA scores.
+    Supports:
+    1. Standard Checklist (scores in Col I/J, descriptions in Col C)
+    2. Integrated Report (scores in Col B, descriptions in Col A)
+    """
+    import re
+    from backend.db import get_db, _safe_int
+    
+    current_p_num = None
+    s_idx_internal = 0
+    updates = []
+    is_integrated = False
+    
+    # Headers to skip
+    SKIP_KEYWORDS = {
+        "EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO", "PRÁTICA", "REQUISITO", 
+        "EVIDENCIAS", "N°", "NÃO TEM PRÁTICA", "PONTUAÇÃO", 
+        "STATUS DA NOTA", "TIPO DE NÃO CONFORMIDADE"
+    }
+
+    log.info(f"Refined parsing started for audit {audit_id}")
+
+    # 1. Detect format by inspecting the first few rows
+    for row in ws.iter_rows(min_row=1, max_row=10, values_only=True):
+        if not row: continue
+        row_str = " ".join(str(c).upper() for c in row if c)
+        if "STATUS DA NOTA" in row_str or "COMENTÁRIOS ADICIONAIS" in row_str:
+            is_integrated = True
+            log.info(f"Audit {audit_id}: Detected 'Integrated Report' format.")
+            break
+
+    # 2. Parse rows
+    for i, row_cells in enumerate(ws.iter_rows(min_row=1, values_only=True)):
+        # Skip completely empty rows
+        if not any(c is not None and str(c).strip() != "" for c in row_cells[:10]):
+            continue
+
+        first_col = str(row_cells[0] or "").strip()
+        second_col = str(row_cells[1] or "").strip()
+        third_col = str(row_cells[2] or "").strip() if len(row_cells) > 2 else ""
+
+        # 2a. Practice Detection
+        # Standard: "1", "4.1"
+        # Integrated: "1 - ROTINAS DE TA"
+        p_match = re.search(r'^(\d+)', first_col)
+        sub_match = re.search(r'^(\d+)\.(\d+)', first_col)
+        
+        if p_match and len(first_col) < 30: # Allow longer for "1 - ROTINAS..."
+            new_p = int(p_match.group(1))
+            
+            # If it's a new practice, reset the index
+            if new_p != current_p_num:
+                # Special case for Integrated: "1 - ROTINAS" row should NOT be a subitem
+                # but if Column B has a note, it might be. Usually headers in Integrated have None in Note Col.
+                current_p_num = new_p
+                s_idx_internal = 0
+                log.info(f"Audit {audit_id}: Detected Practice {current_p_num} at row {i+1}")
+
+            # If it's a dot-notation (e.g., "4.1"), accurately set the index
+            if sub_match:
+                s_idx_internal = int(sub_match.group(2)) - 1
+                if s_idx_internal < 0: s_idx_internal = 0
+
+        # 2b. Subitem Identification & Score Extraction
+        if current_p_num is not None:
+            if is_integrated:
+                # Integrated: Description in A, Score in B
+                desc = first_col
+                nota_sa = _safe_int(row_cells[1]) if len(row_cells) > 1 else None
+                
+                # Title rows in Integrated have "N - NAME" in Col A and often None in Col B
+                # If it matches the practice pattern and has no note, skip as subitem
+                if re.search(r'^\d+\s*-\s*', desc) and nota_sa is None:
+                    continue
+            else:
+                # Standard: Description in C (preferred) or B, Score in I/J
+                desc = third_col or second_col
+                nota_sa = None
+                for col_idx in (8, 9, 7, 10):
+                    if len(row_cells) > col_idx:
+                        val = _safe_int(row_cells[col_idx])
+                        if val is not None:
+                            nota_sa = val
+                            break
+
+            if not desc or len(desc) < 3:
+                continue
+
+            desc_upper = desc.upper()
+            if any(k in desc_upper for k in SKIP_KEYWORDS):
+                continue
+                
+            # Skip likely Practice Titles
+            if not is_integrated:
+                if ("PRÁTICA" in str(second_col).upper() or "PS 00" in str(second_col).upper()) and len(desc) < 60:
+                    continue
+
+            updates.append((nota_sa, audit_id, current_p_num, s_idx_internal))
+            s_idx_internal += 1
+
+    # 3. Apply updates
+
+    # 4. Apply updates
+    if updates:
+        with get_db() as conn:
+            for params in updates:
+                conn.execute("""
+                    UPDATE avaliacoes
+                    SET nota_self_assessment=?
+                    WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
+                """, params)
+            conn.commit()
+        log.info(f"Audit {audit_id}: Finished syncing {len(updates)} subitems from Excel.")
+    
+    return len(updates)
 
 @router.post("/auditorias")
 async def criar_auditoria(
@@ -270,35 +344,10 @@ def importar_assessment(auditoria_id: int, assessment_path: str = ""):
         import openpyxl
         wb = openpyxl.load_workbook(path, data_only=True)
         ws = wb.active
-        imported = 0
-        with get_db() as conn:
-            current_p_num = None
-            s_idx = 0
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if not any(row): continue
-                # Detecta Prática
-                if row[0] and str(row[0]).strip().isdigit():
-                    current_p_num = int(row[0])
-                    s_idx = 0
-                
-                # Processa Subitem - Usamos a coluna C (índice 2)
-                if current_p_num and row[2]:
-                    # Ignorar linha de cabeçalho
-                    if str(row[1]).strip().upper() == "PRÁTICA" or str(row[2]).strip().upper() == "EVIDÊNCIA":
-                        continue
-                        
-                    # Coluna I (índice 8)
-                    nota_sa = _safe_int(row[8])
-                    conn.execute("""
-                        UPDATE avaliacoes SET nota_self_assessment=?
-                        WHERE auditoria_id=? AND pratica_num=? AND subitem_idx=?
-                    """, (nota_sa, auditoria_id, current_p_num, s_idx))
-                    s_idx += 1
-                    imported += 1
-            conn.commit()
-        log.info(f"Manual Excel import complete for audit {auditoria_id}. {imported} items updated (Column I).")
+        imported = _parse_assessment_sheet(ws, auditoria_id)
         return {"ok": True, "imported": imported}
     except Exception as e:
+        log.error(f"Manual import failed for audit {auditoria_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao importar: {str(e)}")
 
 @router.get("/auditorias/{auditoria_id}/exportar-excel")
