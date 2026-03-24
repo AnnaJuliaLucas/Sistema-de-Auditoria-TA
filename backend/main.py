@@ -45,33 +45,52 @@ if os.environ.get("RAILWAY_ENVIRONMENT"):
     os.environ["TMPDIR"] = str(volume_tmp)
     log.info(f"Using volume for temp files: {volume_tmp}")
 
+# CORS
+origins = [
+    "https://sistema-de-auditoria-ta.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: initialize database and reclaim space if critical."""
     if os.environ.get("RAILWAY_ENVIRONMENT"):
         try:
-            # Truncate log ONLY if it's extremely large (>15MB)
+            # 1. Truncate log ONLY if it's extremely large (>15MB)
             if os.path.exists(log_path) and os.path.getsize(log_path) > 15 * 1024 * 1024:
                 with open(log_path, "w") as f:
                     f.write(f"--- Log Auto-Truncated at {datetime.now().isoformat()} ---\n")
             
-            # NOTE: We no longer purge /app/data/uploads here because the disk was increased to 5GB.
-            # Persistence is now safe.
+            # 2. EMERGENCY DISK CLEANUP (Safeguard for 5GB volume)
+            # If disk is >95% full, clear the uploads folder to allow system operation
+            try:
+                usage = shutil.disk_usage("/app/data")
+                free_gb = usage.free / (1024**3)
+                percent_free = (usage.free / usage.total) * 100
+                log.info(f"Disk check: {free_gb:.2f}GB free ({percent_free:.1f}%)")
+                
+                if percent_free < 5:
+                    log.warning("CRITICAL: Disk almost full (<5% free). Clearing uploads folder to recover...")
+                    uploads_dir = Path("/app/data/uploads")
+                    if uploads_dir.exists():
+                        for item in uploads_dir.iterdir():
+                            try:
+                                if item.is_file(): item.unlink()
+                                elif item.is_dir(): shutil.rmtree(item)
+                            except Exception as e:
+                                log.error(f"Failed to delete {item}: {e}")
+                        log.info("Emergency cleanup finished: /app/data/uploads cleared.")
+            except Exception as space_err:
+                log.error(f"Space check failed: {space_err}")
+
         except Exception as e:
             log.error(f"Startup clean error: {e}")
     
     log.info("Starting Sistema de Auditoria TA - Backend API")
     try:
-        from pathlib import Path
-        ev_file = Path("backend/routers/evidencias.py")
-        if ev_file.exists():
-            content = ev_file.read_text(errors='replace')
-            log.info(f"DEBUG: evidencias.py first 100 chars: {content[:100]}")
-            import hashlib
-            log.info(f"DEBUG: evidencias.py md5: {hashlib.md5(content.encode()).hexdigest()}")
-        else:
-            log.info("DEBUG: evidencias.py NOT FOUND locally")
-        
         from backend.db import init_db
         init_db()
         log.info("Database initialized")
@@ -83,18 +102,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sistema de Auditoria TA - Backend API",
     description="API para o Sistema de Auditoria de Automação Industrial",
-    version="2.2.1",
+    version="2.2.2",
     lifespan=lifespan,
 )
-
-# CORS
-origins = [
-    "https://sistema-de-auditoria-ta.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-]
 
 app.add_middleware(
     CORSMiddleware,
