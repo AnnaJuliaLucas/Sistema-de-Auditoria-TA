@@ -290,6 +290,12 @@ export const api = {
       method: "DELETE",
     }),
 
+  limparEvidenciasSubitem: (auditoriaId: number, praticaNum: number, subitemIdx: number) =>
+    fetchAPI<{ ok: boolean; message: string }>(
+      `/api/evidencias/limpar-subitem?auditoria_id=${auditoriaId}&pratica_num=${praticaNum}&subitem_idx=${subitemIdx}`,
+      { method: "DELETE" }
+    ),
+
   // Agente Autônomo
   runAgentBatch: (auditoriaId: number, config: { api_key?: string; provider?: string; base_url?: string; economico?: boolean }) =>
     fetchAPI<{ job_id: string; status: string; message: string; pendentes: number }>(

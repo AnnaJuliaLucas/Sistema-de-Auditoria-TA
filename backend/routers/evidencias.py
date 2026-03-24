@@ -684,3 +684,58 @@ async def remover_evidencia(
     except Exception as e:
         log.error(f"Error removing evidence: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+@router.delete("/limpar-subitem")
+async def limpar_subitem(
+    auditoria_id: int = Query(...),
+    pratica_num: int = Query(...),
+    subitem_idx: int = Query(...)
+):
+    aud = get_auditoria(auditoria_id)
+    if not aud:
+        raise HTTPException(status_code=404, detail="Auditoria não encontrada")
+    
+    try:
+        # Define the target folder using the same logic as upload_granular
+        audit_dir = BASE_DIR / "uploads" / str(auditoria_id)
+        evidences_dir = audit_dir / "evidences"
+        
+        # We need to find the folder that matches the practice and subitem
+        # Instead of guessing the name, we can use the structure [pratica_num] ... / pratica.subitem_idx+1 ...
+        p_folder_pattern = f"[{pratica_num}]*"
+        s_folder_pattern = f"{pratica_num}.{subitem_idx + 1}*"
+        
+        target_dir = None
+        if evidences_dir.exists():
+            # Find practice folder
+            p_folders = list(evidences_dir.glob(p_folder_pattern))
+            if p_folders:
+                # Find subitem folder inside practice folder
+                s_folders = list(p_folders[0].glob(s_folder_pattern))
+                if s_folders:
+                    target_dir = s_folders[0]
+
+        if target_dir and target_dir.exists():
+            # Delete everything inside target_dir
+            shutil.rmtree(str(target_dir))
+            log.info(f"Pasta de subitem removida: {target_dir}")
+            
+            # Recreate the folder (empty) to avoid errors on next upload
+            target_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            return {"ok": True, "message": "Pasta já não existe ou está vazia"}
+            
+        # Atualizar mapa
+        if evidences_dir.exists():
+            new_map = _get_or_build_evidence_map(str(evidences_dir), refresh=True)
+            db_map = {f"{p}.{s}": files for (p, s), files in new_map.items()}
+            
+            with get_db() as conn:
+                q = "UPDATE auditorias SET evidence_map=? WHERE id=?"
+                if USE_POSTGRES: q = q.replace("?", "%s")
+                conn.execute(q, (json.dumps(db_map), auditoria_id))
+                conn.commit()
+            
+        return {"ok": True, "message": "Todas as evidências do subitem foram removidas"}
+    except Exception as e:
+        log.error(f"Error clearing subitem evidence: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

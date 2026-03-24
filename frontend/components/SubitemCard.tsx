@@ -235,6 +235,22 @@ export default function SubitemCard({
         }
     }
 
+    async function handleClearEvidences() {
+        if (!confirm("🔥 ATENÇÃO: Deseja remover TODAS as evidências deste subitem? Esta ação é irreversível.")) return;
+        
+        try {
+            await api.limparEvidenciasSubitem(av.auditoria_id, av.pratica_num, av.subitem_idx);
+            showToast("🗑️ Todas as evidências foram removidas!");
+            
+            // Refresh
+            const res = await fetch(`${API_BASE}/api/evidencias/${av.auditoria_id}/${av.pratica_num}/${av.subitem_idx}?refresh=true`);
+            const data = await res.json();
+            setEvidence(data);
+        } catch (err: unknown) {
+            showToast(`❌ Erro ao limpar: ${err instanceof Error ? err.message : "Falha"}`);
+        }
+    }
+
     function toggleCheck(key: string) {
         setCheckedItems(prev => {
             const next = new Set(prev);
@@ -318,25 +334,38 @@ export default function SubitemCard({
                                     {evidence && <span className="text-xs text-slate-400 font-normal">{evidence.total} arquivo(s)</span>}
                                 </h4>
 
-                                <label className={`cursor-pointer px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-500/30 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    {uploading ? (
-                                        <>
-                                            <span className="animate-spin">⏳</span>
-                                            ENVIANDO...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="text-xs">➕</span>
-                                            ADICIONAR
-                                        </>
+                                <div className="flex items-center gap-2">
+                                    {evidence && (evidence.total > 0) && (
+                                        <button 
+                                            onClick={handleClearEvidences}
+                                            className="px-3 py-1.5 rounded-lg bg-red-600/10 hover:bg-red-600/30 text-red-500 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-red-500/20"
+                                            title="Remover todos os arquivos deste item"
+                                        >
+                                            <span className="text-xs">🗑️</span>
+                                            LIMPAR TUDO
+                                        </button>
                                     )}
-                                    <input 
-                                        type="file" 
-                                        className="hidden" 
-                                        onChange={handleFileUpload} 
-                                        disabled={uploading}
-                                    />
-                                </label>
+
+                                    <label className={`cursor-pointer px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-500/30 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                        {uploading ? (
+                                            <>
+                                                <span className="animate-spin">⏳</span>
+                                                ENVIANDO...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-xs">➕</span>
+                                                ADICIONAR
+                                            </>
+                                        )}
+                                        <input 
+                                            type="file" 
+                                            className="hidden" 
+                                            onChange={handleFileUpload} 
+                                            disabled={uploading}
+                                        />
+                                    </label>
+                                </div>
                             </div>
 
                             {evidence && evidence.total > 0 ? (
