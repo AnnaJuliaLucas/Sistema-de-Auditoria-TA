@@ -36,8 +36,7 @@ EXTS_VIDEO = {'.mp4', '.avi', '.mov', '.mkv', '.webm'}
 EXTS_ALL = EXTS_IMG | EXTS_DOC | EXTS_VIDEO
 
 
-# Caching evidence maps
-_EVIDENCE_CACHE = {}
+# Evidence maps are now read from disk/DB to ensure consistency across workers
 
 def extract_zip_robustly(zip_path: Path, extract_to: Path):
     """Extract zip and bypass single root folder if present, handling encoding issues."""
@@ -195,9 +194,6 @@ def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, audit: dic
                 print(f"Error parsing DB evidence_map: {e}")
         return {}
     
-    if ev_folder in _EVIDENCE_CACHE and not refresh:
-        return _EVIDENCE_CACHE[ev_folder]
-    
     mapa = {}
     try:
         root = Path(ev_folder)
@@ -234,7 +230,7 @@ def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, audit: dic
                 log.info(f"  Subitem {s_num+1} ({pasta_sub.name}) -> {len(arquivos)} arquivos")
                 mapa[(p_num, s_num)] = arquivos
         
-        _EVIDENCE_CACHE[ev_folder] = mapa
+        # Note: We no longer use a process-local cache to ensure multi-worker consistency
     except Exception as e:
         print(f"Erro ao escanear evidências em {ev_folder}: {e}")
         return {}
@@ -695,24 +691,31 @@ async def limpar_subitem(
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
     
     try:
-        # Define the target folder using the same logic as upload_granular
-        audit_dir = BASE_DIR / "uploads" / str(auditoria_id)
-        evidences_dir = audit_dir / "evidences"
+        # Define the target folder using the audit's designated path if available
+        ev_root = aud.get("evidence_folder_path")
+        if ev_root:
+            evidences_dir = Path(ev_root)
+        else:
+            # Fallback to default structure
+            audit_dir = BASE_DIR / "uploads" / str(auditoria_id)
+            evidences_dir = audit_dir / "evidences"
         
+        # Ensure we are working with the correct base directory for practice folders
+        if not evidences_dir.exists():
+            return {"ok": True, "message": "Pasta de evidências não encontrada"}
+
         # We need to find the folder that matches the practice and subitem
-        # Instead of guessing the name, we can use the structure [pratica_num] ... / pratica.subitem_idx+1 ...
         p_folder_pattern = f"[{pratica_num}]*"
         s_folder_pattern = f"{pratica_num}.{subitem_idx + 1}*"
         
         target_dir = None
-        if evidences_dir.exists():
-            # Find practice folder
-            p_folders = list(evidences_dir.glob(p_folder_pattern))
-            if p_folders:
-                # Find subitem folder inside practice folder
-                s_folders = list(p_folders[0].glob(s_folder_pattern))
-                if s_folders:
-                    target_dir = s_folders[0]
+        # Find practice folder
+        p_folders = list(evidences_dir.glob(p_folder_pattern))
+        if p_folders:
+            # Find subitem folder inside practice folder
+            s_folders = list(p_folders[0].glob(s_folder_pattern))
+            if s_folders:
+                target_dir = s_folders[0]
 
         if target_dir and target_dir.exists():
             # Delete everything inside target_dir
