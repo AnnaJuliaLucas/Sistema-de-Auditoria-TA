@@ -577,51 +577,78 @@ def _limpar_cache_auditoria():
 # PARSER DO ASSESSMENT
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_assessment(file_path):
+    import re
     try:
         wb = load_workbook(file_path, data_only=True)
         sheet_name = next((n for n in wb.sheetnames if 'ROAD MAP' in n and 'Trefila' not in n), wb.sheetnames[0])
         ws = wb[sheet_name]
-        praticas = []; pratica_atual = None
+        praticas_dict = {} # Use dict to store practices by number
+        
         for row in ws.iter_rows(values_only=True):
-            if not row or (len(row) > 1 and (row[0]=='N°' or row[1]=='PRÁTICA')) or all(v is None for v in row):
+            if not row or all(v is None for v in row):
                 continue
             
-            col0, col1, col2 = row[0], row[1], row[2]
-            # Levels are columns 3, 4, 5, 6, 7 (0-indexed)
-            n0, n1, n2, n3, n4 = row[3], row[4], row[5], row[6], row[7]
-            nota_item = row[8]
+            first_col = str(row[0] or "").strip()
             
-            # Check for new Practice - robust check for int, float (1.0) or numeric string
-            is_new_practice = False
-            p_num = None
-            if isinstance(col0, (int, float)):
-                is_new_practice = True
-                p_num = int(col0)
-            elif isinstance(col0, str) and col0.strip().isdigit():
-                is_new_practice = True
-                p_num = int(col0)
-            
-            if is_new_practice and col1 and 'PRÁTICA' not in str(col1):
-                pratica_atual = {'num': p_num, 'nome': str(col1).strip().replace('\n', ' '), 'subitems': []}
-                praticas.append(pratica_atual)
-            
-            if col2 and pratica_atual:
-                col2_str = str(col2).strip()
-                if col2_str.upper() == "EVIDÊNCIA": # Ignorar cabeçalho se houver
-                    continue
-                pratica_atual['subitems'].append({
+            # Detect subitem: "1.1", "1.2", etc.
+            subitem_match = re.match(r'^(\d+)\.(\d+)', first_col)
+            # Detect practice header: "1", "2", or "1 - ROTINAS"
+            practice_match = re.match(r'^(\d+)\s*$', first_col)
+            integrated_practice_match = re.match(r'^(\d+)\s*[-–]', first_col)
+
+            if subitem_match:
+                p_num = int(subitem_match.group(1))
+                s_idx = int(subitem_match.group(2)) - 1
+                
+                # Ensure practice exists
+                if p_num not in praticas_dict:
+                    praticas_dict[p_num] = {'num': p_num, 'nome': f"Prática {p_num}", 'subitems_map': {}}
+                
+                # Extract data
+                n0, n1, n2, n3, n4 = row[3], row[4], row[5], row[6], row[7]
+                nota_item = row[8]
+                col2_str = str(row[2] or "").strip()
+                
+                if col2_str.upper() == "EVIDÊNCIA": continue
+                
+                praticas_dict[p_num]['subitems_map'][s_idx] = {
                     'nome': col2_str.split('\n')[0].strip(),
                     'evidencia': col2_str,
                     'niveis': {k: str(v).strip() if v else '' for k, v in enumerate([n0, n1, n2, n3, n4])},
                     'nota_sa': int(nota_item) if isinstance(nota_item, (int, float)) else None
-                })
-        return praticas
+                }
+            elif (practice_match or integrated_practice_match) and len(first_col) < 50:
+                m = practice_match or integrated_practice_match
+                p_num = int(m.group(1))
+                p_nome = str(row[1] or "").strip().replace('\n', ' ')
+                
+                if p_num not in praticas_dict:
+                    praticas_dict[p_num] = {'num': p_num, 'nome': p_nome, 'subitems_map': {}}
+                else:
+                    # Update name if it was just a placeholder
+                    if p_nome and 'PRÁTICA' not in p_nome.upper():
+                        praticas_dict[p_num]['nome'] = p_nome
+
+        # Convert dict to sorted list with ordered subitems
+        final_praticas = []
+        for p_num in sorted(praticas_dict.keys()):
+            p_data = praticas_dict[p_num]
+            # Convert subitems_map to list, filling gaps as needed or just returning found ones
+            # The database part expects subitems in order starting from 0
+            subitems = []
+            max_idx = max(p_data['subitems_map'].keys()) if p_data['subitems_map'] else -1
+            for i in range(max_idx + 1):
+                subitems.append(p_data['subitems_map'].get(i, {'nome': f'Subitem {i+1}', 'evidencia': '', 'niveis': {}, 'nota_sa': None}))
+            
+            p_data['subitems'] = subitems
+            del p_data['subitems_map']
+            final_praticas.append(p_data)
+            
+        return final_praticas
     except Exception as e:
         msg = f"Erro ao ler assessment: {e}"
-        try:
-            st.error(msg)
-        except Exception:
-            print(msg)
+        try: st.error(msg)
+        except: print(msg)
         return []
 
 # ──────────────────────────────────────────────────────────────────────────────

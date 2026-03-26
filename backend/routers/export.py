@@ -172,7 +172,6 @@ def _parse_assessment_sheet(ws, audit_id: int):
     from backend.db import get_db, _safe_int
     
     current_p_num = None
-    s_idx_internal = 0
     updates = []
     is_integrated = False
     
@@ -204,43 +203,37 @@ def _parse_assessment_sheet(ws, audit_id: int):
         second_col = str(row_cells[1] or "").strip()
         third_col = str(row_cells[2] or "").strip() if len(row_cells) > 2 else ""
 
-        # 2a. Practice Detection
-        # Standard: "1", "4.1"
-        # Integrated: "1 - ROTINAS DE TA"
-        p_match = re.search(r'^(\d+)', first_col)
-        sub_match = re.search(r'^(\d+)\.(\d+)', first_col)
+        # 2a. Practice / Subitem Detection
+        # Match "1.1", "1.2", "4.1" etc. at the start of first column
+        subitem_match = re.match(r'^(\d+)\.(\d+)', first_col)
+        # Match standalone practice "1", "2" etc.
+        practice_match = re.match(r'^(\d+)\s*$', first_col)
         
-        if p_match and len(first_col) < 30: # Allow longer for "1 - ROTINAS..."
-            new_p = int(p_match.group(1))
-            
-            # If it's a new practice, reset the index
-            if new_p != current_p_num:
-                # Special case for Integrated: "1 - ROTINAS" row should NOT be a subitem
-                # but if Column B has a note, it might be. Usually headers in Integrated have None in Note Col.
-                current_p_num = new_p
-                s_idx_internal = 0
-                log.info(f"Audit {audit_id}: Detected Practice {current_p_num} at row {i+1}")
+        # If integrated, practice might be "1 - ROTINAS"
+        integrated_practice_match = re.match(r'^(\d+)\s*[-–]', first_col)
 
-            # If it's a dot-notation (e.g., "4.1"), accurately set the index
-            if sub_match:
-                s_idx_internal = int(sub_match.group(2)) - 1
-                if s_idx_internal < 0: s_idx_internal = 0
+        if subitem_match:
+            p_num = int(subitem_match.group(1))
+            s_idx = int(subitem_match.group(2)) - 1
+            current_p_num = p_num
+            target_s_idx = s_idx
+        elif (practice_match or integrated_practice_match) and len(first_col) < 50:
+            m = practice_match or integrated_practice_match
+            current_p_num = int(m.group(1))
+            continue # This is a header row, not a subitem data row
+        else:
+            # If no explicit match, we skip unless we have a reason to believe it's a subitem
+            continue
 
-        # 2b. Subitem Identification & Score Extraction
+        # 2b. Score Extraction
         if current_p_num is not None:
             if is_integrated:
                 # Integrated: Description in A, Score in B
-                desc = first_col
                 nota_sa = _safe_int(row_cells[1]) if len(row_cells) > 1 else None
-                
-                # Title rows in Integrated have "N - NAME" in Col A and often None in Col B
-                # If it matches the practice pattern and has no note, skip as subitem
-                if re.search(r'^\d+\s*-\s*', desc) and nota_sa is None:
-                    continue
             else:
                 # Standard: Description in C (preferred) or B, Score in I/J
-                desc = third_col or second_col
                 nota_sa = None
+                # Check typical score columns: I (8), J (9), H (7), K (10)
                 for col_idx in (8, 9, 7, 10):
                     if len(row_cells) > col_idx:
                         val = _safe_int(row_cells[col_idx])
@@ -248,24 +241,11 @@ def _parse_assessment_sheet(ws, audit_id: int):
                             nota_sa = val
                             break
 
-            if not desc or len(desc) < 3:
-                continue
-
-            desc_upper = desc.upper()
-            if any(k in desc_upper for k in SKIP_KEYWORDS):
-                continue
-                
-            # Skip likely Practice Titles
-            if not is_integrated:
-                if ("PRÁTICA" in str(second_col).upper() or "PS 00" in str(second_col).upper()) and len(desc) < 60:
-                    continue
-
-            updates.append((nota_sa, audit_id, current_p_num, s_idx_internal))
-            s_idx_internal += 1
+            if nota_sa is not None:
+                updates.append((nota_sa, audit_id, current_p_num, target_s_idx))
+                log.debug(f"Row {i+1}: Found P{current_p_num} S{target_s_idx+1} = {nota_sa}")
 
     # 3. Apply updates
-
-    # 4. Apply updates
     if updates:
         with get_db() as conn:
             for params in updates:
@@ -443,15 +423,19 @@ def exportar_excel(auditoria_id: int):
         nota_sa = av.get('nota_self_assessment')
         nota_f = av.get('nota_final')
         
-        # Determinando o Status da Nota
+        # Determinando o Status da Nota e Tipo de NC
         status = "Permanece"
         if nota_f is not None and nota_sa is not None:
             if nota_f < nota_sa: status = "Diminui"
             elif nota_f > nota_sa: status = "Aumenta"
             
+        decisao = av.get('decisao', 'pendente')
         tipo_nc = "Não se aplica"
         if status == "Diminui":
-            tipo_nc = "Evidências insuficiente"
+            if decisao == 'inexistente':
+                tipo_nc = "Evidências inexistente"
+            else:
+                tipo_nc = "Evidências insuficiente"
             
         # Subitem Description refinement
         # User wants only the short name without the number (e.g. "Backup..." instead of "1.1 - Backup...")
