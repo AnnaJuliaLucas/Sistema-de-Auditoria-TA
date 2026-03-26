@@ -374,6 +374,7 @@ def exportar_excel(auditoria_id: int):
     green_status_fill = PatternFill(start_color="00B050", end_color="00B050", fill_type="solid")
     yellow_nc_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
     orange_nc_fill = PatternFill(start_color="FFC000", end_color="FFC000", fill_type="solid")
+    grey_fill = PatternFill(start_color="A6A6A6", end_color="A6A6A6", fill_type="solid")
     
     white_bold_font = Font(name='Arial', size=10, bold=True, color="FFFFFF")
     navy_bold_font = Font(name='Arial', size=10, bold=True, color="002060")
@@ -480,7 +481,10 @@ def exportar_excel(auditoria_id: int):
             
             # Conditional Styling for Status (Column C)
             if ci == 3:
-                if vals[2] == "Diminui":
+                if vals[3] == "Evidências inexistente":
+                    cell.fill = grey_fill
+                    cell.font = white_bold_font
+                elif vals[2] == "Diminui":
                     cell.fill = red_status_fill
                     cell.font = white_bold_font
                 elif vals[2] in ["Permanece", "Mantém", "Manter", "Aumenta", "Melhora"]:
@@ -489,7 +493,9 @@ def exportar_excel(auditoria_id: int):
             
             # Conditional Styling for Tipo NC (Column D)
             if ci == 4:
-                if vals[2] == "Diminui":
+                if vals[3] == "Evidências inexistente":
+                    cell.fill = grey_fill
+                elif vals[2] == "Diminui":
                     cell.fill = yellow_nc_fill
                 else:
                     cell.fill = orange_nc_fill

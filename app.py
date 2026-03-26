@@ -401,7 +401,7 @@ UNIDADES_AREAS = {
 ESCALA = {0:("🔴","Não tem prática"),1:("🟠","Iniciando"),
           2:("🟡","Regular"),3:("🔵","Bom"),4:("🟢","Excelente")}
 
-COR_NOTA = {0:"#D32F2F",1:"#E64A19",2:"#F9A825",3:"#1976D2",4:"#388E3C"}
+COR_NOTA = {0:"#A6A6A6",1:"#E64A19",2:"#F9A825",3:"#1976D2",4:"#388E3C"}
 
 # DB_PATH gerenciado pelo módulo database.py (C:\\AuditoriaTA\\dados\\)
 DB_PATH = db_module.DB_PATH
@@ -872,7 +872,10 @@ def gerar_excel(auditoria_id):
             # Formatação condicional para Status da Nota (Coluna C, ci=3)
             if ci == 3:
                 if val == "Diminui":
-                    c.fill = fill(COR_DIMINUI_FUNDO)
+                    if vals[3] == "Evidências inexistente":
+                        c.fill = fill(COR_EVID_INEXIST_FUNDO)
+                    else:
+                        c.fill = fill(COR_DIMINUI_FUNDO)
                     c.font = Font(name='Arial', size=10, bold=True, color=COR_FONTE_BRANCA)
                 elif val == "Aumenta": # Adicionado para o caso de 'Aumenta'
                     c.fill = fill(COR_AUMENTA_FUNDO)
