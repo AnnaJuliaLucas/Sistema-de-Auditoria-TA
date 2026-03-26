@@ -757,12 +757,20 @@ def duplicar_auditoria(auditoria_id: int, novo_ciclo: str) -> int | None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _safe_int(v):
-    """Converte para int nativo Python, retorna None se inválido."""
+    """Converte para int nativo Python, retorna None se inválido.
+    Lida com: None, NaN, strings "4.0", "4", etc.
+    """
     if v is None:
         return None
     try:
-        if isinstance(v, float) and (v != v):  # NaN
-            return None
+        if isinstance(v, float):
+            if v != v: return None # NaN
+            return int(v)
+        if isinstance(v, str):
+            # Lidar com "4.0" -> "4"
+            v = v.strip().split('.')[0]
+            if not v: return None
+            return int(v)
         return int(v)
     except (TypeError, ValueError):
         return None
@@ -803,13 +811,18 @@ def salvar_avaliacao(auditoria_id, pratica_num, pratica_nome,
 
             conn.execute("""
                 UPDATE avaliacoes
-                SET decisao=?, nota_final=?, descricao_nc=?, comentarios=?,
+                SET pratica_nome=?, subitem_nome=?, evidencia_descricao=?,
+                    nivel_0=?, nivel_1=?, nivel_2=?, nivel_3=?, nivel_4=?,
+                    nota_self_assessment=?,
+                    decisao=?, nota_final=?, descricao_nc=?, comentarios=?,
                     ia_decisao=?, ia_nota_sugerida=?, ia_confianca=?,
                     ia_pontos_atendidos=?, ia_pontos_faltantes=?,
                     ia_analise_detalhada=?, ia_status=?,
                     data_atualizacao=?
                 WHERE id=?
             """, (
+                pratica_nome, subitem_nome, evidencia_desc,
+                n0, n1, n2, n3, n4, nota_sa,
                 decisao, nota_final, desc_nc, comentarios,
                 ia_decisao, ia_nota, ia_confianca,
                 json.dumps(ia_atendidos  or [], ensure_ascii=False),

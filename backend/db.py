@@ -207,8 +207,13 @@ def _safe_int(v):
     if v is None:
         return None
     try:
-        if isinstance(v, float) and (v != v):  # NaN
-            return None
+        if isinstance(v, float):
+            if v != v: return None
+            return int(v)
+        if isinstance(v, str):
+            v = v.strip().split('.')[0]
+            if not v: return None
+            return int(v)
         return int(v)
     except (TypeError, ValueError):
         return None

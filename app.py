@@ -606,16 +606,25 @@ def parse_assessment(file_path):
                 
                 # Extract data
                 n0, n1, n2, n3, n4 = row[3], row[4], row[5], row[6], row[7]
-                nota_item = row[8]
                 col2_str = str(row[2] or "").strip()
                 
                 if col2_str.upper() == "EVIDÊNCIA": continue
+                
+                # Robust note parsing - scan multiple columns if row[8] is empty
+                # Some sheets have notes in I, J, or H
+                final_nota = None
+                for col_idx in [8, 9, 7]: # Columns I, J, H
+                    if len(row) > col_idx:
+                        val = db_module._safe_int(row[col_idx])
+                        if val is not None:
+                            final_nota = val
+                            break
                 
                 praticas_dict[p_num]['subitems_map'][s_idx] = {
                     'nome': col2_str.split('\n')[0].strip(),
                     'evidencia': col2_str,
                     'niveis': {k: str(v).strip() if v else '' for k, v in enumerate([n0, n1, n2, n3, n4])},
-                    'nota_sa': int(nota_item) if isinstance(nota_item, (int, float)) else None
+                    'nota_sa': final_nota
                 }
             elif (practice_match or integrated_practice_match) and len(first_col) < 50:
                 m = practice_match or integrated_practice_match
