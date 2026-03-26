@@ -194,56 +194,75 @@ def _parse_assessment_sheet(ws, audit_id: int):
             break
 
     # 2. Parse rows
+    current_p_num = None
+    current_s_offset = 0
+
     for i, row_cells in enumerate(ws.iter_rows(min_row=1, values_only=True)):
-        # Skip completely empty rows
-        if not any(c is not None and str(c).strip() != "" for c in row_cells[:10]):
+        if not row_cells or all(v is None for v in row_cells):
             continue
-
-        first_col = str(row_cells[0] or "").strip()
-        second_col = str(row_cells[1] or "").strip()
-        third_col = str(row_cells[2] or "").strip() if len(row_cells) > 2 else ""
-
-        # 2a. Practice / Subitem Detection
-        # Match "1.1", "1.2", "4.1" etc. at the start of first column
-        subitem_match = re.match(r'^(\d+)\.(\d+)', first_col)
-        # Match standalone practice "1", "2" etc.
-        practice_match = re.match(r'^(\d+)\s*$', first_col)
         
-        # If integrated, practice might be "1 - ROTINAS"
-        integrated_practice_match = re.match(r'^(\d+)\s*[-–]', first_col)
-
-        if subitem_match:
-            p_num = int(subitem_match.group(1))
-            s_idx = int(subitem_match.group(2)) - 1
-            current_p_num = p_num
-            target_s_idx = s_idx
-        elif (practice_match or integrated_practice_match) and len(first_col) < 50:
-            m = practice_match or integrated_practice_match
-            current_p_num = int(m.group(1))
-            continue # This is a header row, not a subitem data row
-        else:
-            # If no explicit match, we skip unless we have a reason to believe it's a subitem
+        first_col = row_cells[0]
+        col2_val = str(row_cells[2] or "").strip() if len(row_cells) > 2 else ""
+        
+        # 1. Header/Footer Skip
+        if isinstance(first_col, str) and ("N°" in first_col or len(first_col) > 10):
+            current_p_num = None
+            continue
+        if not col2_val or col2_val.upper() == "EVIDÊNCIA":
             continue
 
-        # 2b. Score Extraction
-        if current_p_num is not None:
-            if is_integrated:
-                # Integrated: Description in A, Score in B
-                nota_sa = _safe_int(row_cells[1]) if len(row_cells) > 1 else None
-            else:
-                # Standard: Description in C (preferred) or B, Score in I/J
-                nota_sa = None
-                # Check typical score columns: I (8), J (9), H (7), K (10)
-                for col_idx in (8, 9, 7, 10):
-                    if len(row_cells) > col_idx:
-                        val = _safe_int(row_cells[col_idx])
-                        if val is not None:
-                            nota_sa = val
-                            break
+        # 2. Practice & Subitem Detection
+        p_num = None
+        s_idx = None
 
-            if nota_sa is not None:
-                updates.append((nota_sa, audit_id, current_p_num, target_s_idx))
-                log.debug(f"Row {i+1}: Found P{current_p_num} S{target_s_idx+1} = {nota_sa}")
+        # 2a. Explicit Match (1.1)
+        explicit_match = None
+        if isinstance(first_col, str):
+            explicit_match = re.match(r'^(\d+)\.(\d+)', first_col.strip())
+        
+        if explicit_match:
+            p_num = int(explicit_match.group(1))
+            s_idx = int(explicit_match.group(2)) - 1
+            current_p_num = p_num
+            current_s_offset = s_idx
+        # 2b. Practice Header (int)
+        elif isinstance(first_col, int):
+            p_num = first_col
+            s_idx = 0
+            current_p_num = p_num
+            current_s_offset = 0
+        # 2c. Practice Header (string "1")
+        elif isinstance(first_col, str):
+            m_p = re.match(r'^(\d+)\s*$', first_col.strip())
+            m_ip = re.match(r'^(\d+)\s*[-–]', first_col.strip())
+            m = m_p or m_ip
+            if m and len(first_col) < 50:
+                p_num = int(m.group(1))
+                s_idx = 0
+                current_p_num = p_num
+                current_s_offset = 0
+        # 2d. Positional
+        elif first_col is None and current_p_num is not None:
+            current_s_offset += 1
+            p_num = current_p_num
+            s_idx = current_s_offset
+        
+        if p_num is None or s_idx is None:
+            continue
+
+        # 3. Score Extraction
+        nota_sa = None
+        # Check typical score columns: I (8), J (9), H (7)
+        for col_idx in (8, 9, 7):
+            if len(row_cells) > col_idx:
+                val = _safe_int(row_cells[col_idx])
+                if val is not None:
+                    nota_sa = val
+                    break
+
+        if nota_sa is not None:
+            updates.append((nota_sa, audit_id, p_num, s_idx))
+            log.debug(f"Row {i+1}: Found P{p_num} S{s_idx+1} = {nota_sa}")
 
     # 3. Apply updates
     if updates:
