@@ -481,10 +481,7 @@ def exportar_excel(auditoria_id: int):
             
             # Conditional Styling for Status (Column C)
             if ci == 3:
-                if vals[3] == "Evidências inexistente":
-                    cell.fill = grey_fill
-                    cell.font = white_bold_font
-                elif vals[2] == "Diminui":
+                if vals[2] == "Diminui":
                     cell.fill = red_status_fill
                     cell.font = white_bold_font
                 elif vals[2] in ["Permanece", "Mantém", "Manter", "Aumenta", "Melhora"]:
