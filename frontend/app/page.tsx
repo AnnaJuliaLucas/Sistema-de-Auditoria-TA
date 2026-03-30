@@ -137,7 +137,8 @@ export default function HomePage() {
             const unitAuds = grouped[unidade] || [];
             // Sub-metrics
             const inProgress = unitAuds.filter(a => a.status === "em_andamento").length;
-            const completed = unitAuds.filter(a => a.status === "concluida").length;
+            const completed = unitAuds.filter(a => a.status === "concluida" || a.status === "em_revisao").length;
+            const approved = unitAuds.filter(a => a.status === "aprovada").length;
             const avgScore = unitAuds.reduce((sum, a) => sum + (a.media_nota_final || 0), 0) / (unitAuds.filter(a => a.media_nota_final != null).length || 1);
 
             // Sorting within unit
@@ -164,15 +165,19 @@ export default function HomePage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4 ml-12 md:ml-0">
-                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[100px]">
+                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
                         <div className="text-blue-400 font-black text-xl">{inProgress}</div>
                         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ativas</div>
                       </div>
-                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[100px]">
+                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
                         <div className="text-green-400 font-black text-xl">{completed}</div>
                         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Prontas</div>
                       </div>
-                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[100px]">
+                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
+                        <div className="text-purple-400 font-black text-xl">{approved}</div>
+                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Aprovadas</div>
+                      </div>
+                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
                         <div className="text-pink-400 font-black text-xl">{avgScore > 0 ? avgScore.toFixed(1) : "—"}</div>
                         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Média</div>
                       </div>
