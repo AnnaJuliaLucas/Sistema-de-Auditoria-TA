@@ -188,51 +188,64 @@ def _get_or_build_evidence_map(ev_folder: str, refresh: bool = False, audit: dic
             try:
                 import json
                 db_map = json.loads(audit["evidence_map"])
-                # Convert "1.0" string keys back to (1, 0) tuples
+                log.info(f"[SCAN] Using DB fallback for {audit.get('id')}")
                 return {tuple(map(int, k.split('.'))): v for k, v in db_map.items()}
             except Exception as e:
-                print(f"Error parsing DB evidence_map: {e}")
+                log.error(f"[SCAN] Error parsing DB evidence_map: {e}")
         return {}
     
     mapa = {}
     try:
         root = Path(ev_folder)
+        log.info(f"[SCAN] Scanning root: {root.absolute()}")
+        
         # Bypassing single root folder wrapper (common in ZIPs)
         items = [i for i in root.iterdir() if not i.name.startswith('.')]
         if len(items) == 1 and items[0].is_dir():
-            log.info(f"Bypassing root folder wrapper: {items[0].name}")
-            root = items[0]
+            # Only bypass if it's NOT a practice folder format
+            if not re.match(r'^\[?(\d+)[\]\-_\s\.]', items[0].name):
+                log.info(f"[SCAN] Bypassing root folder wrapper: {items[0].name}")
+                root = items[0]
             
-        log.info(f"Escaneando pasta de evidências: {root}")
         for pasta_pratica in sorted(root.iterdir()):
-            if not pasta_pratica.is_dir():
-                continue
+            if not pasta_pratica.is_dir(): continue
             m_p = re.match(r'^\[?(\d+)[\]\-_\s\.]', pasta_pratica.name)
             if not m_p:
-                log.debug(f"Pasta de prática ignorada (sem match regex): {pasta_pratica.name}")
+                log.debug(f"[SCAN]  Skipping dir: {pasta_pratica.name}")
                 continue
-            p_num = int(m_p.group(1))
             
-            log.info(f"Prática encontrada: {p_num} ({pasta_pratica.name})")
+            p_num = int(m_p.group(1))
+            log.info(f"[SCAN] Found Practice {p_num}: {pasta_pratica.name}")
+            
             for pasta_sub in sorted(pasta_pratica.iterdir()):
-                if not pasta_sub.is_dir():
-                    continue
+                if not pasta_sub.is_dir(): continue
                 m_s = re.match(r'^(\d+)\.(\d+)(?:[\s\-_\.]|$)', pasta_sub.name)
                 if not m_s:
-                    log.debug(f"  Subitem ignorado: {pasta_sub.name}")
+                    log.debug(f"[SCAN]    Subitem regex NO match: {pasta_sub.name}")
                     continue
+                
                 s_num = int(m_s.group(2)) - 1  # 0-based
                 
-                arquivos = [
-                    str(f) for f in sorted(pasta_sub.rglob("*"))
-                    if f.is_file() and f.suffix.lower() in EXTS_ALL
-                ]
-                log.info(f"  Subitem {s_num+1} ({pasta_sub.name}) -> {len(arquivos)} arquivos")
-                mapa[(p_num, s_num)] = arquivos
+                # Scan ALL files first, then filter, for better logging
+                all_files = list(pasta_sub.rglob("*"))
+                log.info(f"[SCAN]    Subitem {p_num}.{s_num+1} ({pasta_sub.name}) has {len(all_files)} total nodes.")
+                
+                arquivos = []
+                for f in sorted(all_files):
+                    if f.is_file():
+                        if f.suffix.lower() in EXTS_ALL:
+                            arquivos.append(str(f.absolute()))
+                        else:
+                            log.debug(f"[SCAN]      Ignoring file (ext): {f.name}")
+                
+                if arquivos:
+                    log.info(f"[SCAN]    Subitem {p_num}.{s_num+1} -> {len(arquivos)} valid evidence files.")
+                    mapa[(p_num, s_num)] = arquivos
+                else:
+                    log.warning(f"[SCAN]    Subitem {p_num}.{s_num+1} -> ZERO valid evidence files found.")
         
-        # Note: We no longer use a process-local cache to ensure multi-worker consistency
     except Exception as e:
-        print(f"Erro ao escanear evidências em {ev_folder}: {e}")
+        log.error(f"[SCAN] Error scanning evidences in {ev_folder}: {e}")
         return {}
         
     return mapa
@@ -607,10 +620,12 @@ async def upload_granular(
     # 3. Atualizar mapa de evidências (background ou imediato)
     try:
         # Re-escaneia a pasta de evidências para o novo mapa
+        log.info(f"[UPLOAD] Re-scanning evidence folder for audit {auditoria_id}: {evidences_dir}")
         new_map = _get_or_build_evidence_map(str(evidences_dir), refresh=True)
         
         # Converte chaves para string para salvar no DB
         db_map = {f"{p}.{s}": files for (p, s), files in new_map.items()}
+        log.info(f"[UPLOAD] Found {len(db_map)} subitems with evidence in new map: {list(db_map.keys())}")
         
         with get_db() as conn:
             q = "UPDATE auditorias SET evidence_map=?, evidence_folder_path=? WHERE id=?"
@@ -618,9 +633,9 @@ async def upload_granular(
             conn.execute(q, (json.dumps(db_map), str(evidences_dir), auditoria_id))
             conn.commit()
             
-        log.info(f"Granular upload success: {file.filename} for audit {auditoria_id}")
+        log.info(f"[UPLOAD] Granular upload success: {file.filename} for audit {auditoria_id}. DB updated.")
     except Exception as e:
-        log.error(f"Evidence map update failed after upload: {e}")
+        log.error(f"[UPLOAD] Evidence map update failed after upload: {e}")
     
     return {
         "ok": True,

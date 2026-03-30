@@ -143,43 +143,47 @@ export default function HomePage() {
 
             // Sorting within unit
             const sorted = [...unitAuds].sort((a, b) => {
-              const p: any = { em_andamento: 1, concluida: 2, aprovada: 3, em_revisao: 4 };
+              const p: any = { em_andamento: 1, concluida: 2, em_revisao: 3, aprovada: 4 };
               return (p[a.status] || 99) - (p[b.status] || 99);
             });
 
             return (
               <div key={unidade} className="animate-slide-up group/unit">
-                {/* Unit Hero Card */}
-                <div className="mb-8 p-8 rounded-[32px] bg-gradient-to-br from-slate-900/80 to-slate-900/40 border border-white/5 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-12 opacity-[0.03] group-hover/unit:opacity-[0.07] transition-opacity pointer-events-none">
+                {/* Unit Hero Card - Premium Glassmorphism */}
+                <div className="mb-10 p-10 rounded-[40px] bg-slate-900/40 backdrop-blur-3xl border border-white/10 relative overflow-hidden shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-500 hover:border-blue-500/30">
+                  <div className="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full group-hover/unit:bg-blue-500/10 transition-colors" />
+                  <div className="absolute top-0 right-0 p-12 opacity-[0.02] group-hover/unit:opacity-[0.05] transition-opacity pointer-events-none">
                     <span className="text-9xl font-black">{unidade.charAt(0)}</span>
                   </div>
                   
-                  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-10">
                     <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="p-2.5 bg-blue-600/20 text-blue-500 rounded-xl text-xl">📍</span>
-                        <h2 className="text-3xl font-black text-white tracking-tight">{unidade}</h2>
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="p-3.5 bg-blue-600/20 text-blue-400 rounded-2xl text-2xl shadow-inner shadow-white/5">📍</div>
+                        <div>
+                          <h2 className="text-4xl font-black text-white tracking-tighter">{unidade}</h2>
+                          <div className="h-1 w-20 bg-blue-600 mt-1 rounded-full opacity-50" />
+                        </div>
                       </div>
-                      <p className="text-slate-500 font-medium ml-12">Monitorando {unitAuds.length} áreas industriais</p>
+                      <p className="text-slate-500 font-bold ml-[72px] tracking-tight">Monitorando {unitAuds.length} áreas industriais</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 ml-12 md:ml-0">
-                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
-                        <div className="text-blue-400 font-black text-xl">{inProgress}</div>
-                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ativas</div>
+                    <div className="flex flex-wrap items-center gap-5 ml-[72px] md:ml-0">
+                      <div className="px-6 py-4 bg-white/5 backdrop-blur-md rounded-3xl border border-white/5 text-center min-w-[100px] shadow-sm shadow-black/20">
+                        <div className="text-blue-400 font-black text-2xl mb-0.5">{inProgress}</div>
+                        <div className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Ativas</div>
                       </div>
-                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
-                        <div className="text-green-400 font-black text-xl">{completed}</div>
-                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Prontas</div>
+                      <div className="px-6 py-4 bg-white/5 backdrop-blur-md rounded-3xl border border-white/5 text-center min-w-[100px] shadow-sm shadow-black/20">
+                        <div className="text-green-400 font-black text-2xl mb-0.5">{completed}</div>
+                        <div className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Prontas</div>
                       </div>
-                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
-                        <div className="text-purple-400 font-black text-xl">{approved}</div>
-                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Aprovadas</div>
+                      <div className="px-6 py-4 bg-white/5 backdrop-blur-md rounded-3xl border border-white/5 text-center min-w-[100px] shadow-sm shadow-black/20">
+                        <div className="text-purple-400 font-black text-2xl mb-0.5">{approved}</div>
+                        <div className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Aprovadas</div>
                       </div>
-                      <div className="px-5 py-3 bg-slate-800/40 rounded-2xl border border-white/5 text-center min-w-[90px]">
-                        <div className="text-pink-400 font-black text-xl">{avgScore > 0 ? avgScore.toFixed(1) : "—"}</div>
-                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Média</div>
+                      <div className="px-6 py-4 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 text-center min-w-[100px] shadow-lg shadow-black/20">
+                        <div className="text-white font-black text-2xl mb-0.5">{avgScore > 0 ? avgScore.toFixed(1) : "—"}</div>
+                        <div className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">Média</div>
                       </div>
                     </div>
                   </div>
@@ -210,10 +214,9 @@ export default function HomePage() {
                               {aud.area}
                             </h3>
                             <div className="flex items-center gap-3">
-                              <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md">ID #{aud.id}</span>
                               <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
                                 <span className="opacity-50">🔄 Ciclo</span>
-                                <span className="text-white">{aud.ciclo}</span>
+                                <span className="text-white font-bold">{aud.ciclo}</span>
                               </div>
                             </div>
                           </div>
@@ -264,23 +267,29 @@ export default function HomePage() {
                             </div>
                           </div>
 
-                          {/* Team Info */}
+                          {/* Team Info - Overhauled for Legibility */}
                           {(aud.auditado_por || aud.revisado_por) && (
-                            <div className="mt-6 flex flex-col gap-2">
+                            <div className="mt-8 grid grid-cols-1 gap-3">
                               {aud.auditado_por && (
-                                <div className="flex items-center gap-3">
-                                  <div className="w-6 h-6 rounded-lg bg-blue-600/10 flex items-center justify-center text-[10px] font-bold text-blue-500">A</div>
-                                  <span className="text-[10px] font-bold text-slate-400 truncate tracking-tight">
-                                    <span className="opacity-50">Por: </span>{formatUserNames(aud.auditado_por)}
-                                  </span>
+                                <div className="flex items-center gap-3 bg-white/5 p-2.5 rounded-2xl border border-white/5 hover:bg-white/[0.08] transition-colors">
+                                  <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-xs font-black text-white shadow-lg shadow-blue-900/40">A</div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest leading-none mb-1">Auditor</span>
+                                    <span className="text-[13px] font-bold text-slate-200 truncate leading-tight tracking-tight">
+                                      {formatUserNames(aud.auditado_por)}
+                                    </span>
+                                  </div>
                                 </div>
                               )}
                               {aud.revisado_por && (
-                                <div className="flex items-center gap-3">
-                                  <div className="w-6 h-6 rounded-lg bg-amber-600/10 flex items-center justify-center text-[10px] font-bold text-amber-500">R</div>
-                                  <span className="text-[10px] font-bold text-amber-200/60 truncate tracking-tight">
-                                    <span className="opacity-50 text-slate-400">Revisado: </span>{formatUserNames(aud.revisado_por)}
-                                  </span>
+                                <div className="flex items-center gap-3 bg-amber-600/5 p-2.5 rounded-2xl border border-amber-600/10 hover:bg-amber-600/10 transition-colors">
+                                  <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center text-xs font-black text-white shadow-lg shadow-amber-900/40">R</div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest leading-none mb-1">Revisor</span>
+                                    <span className="text-[13px] font-bold text-amber-100 truncate leading-tight tracking-tight">
+                                      {formatUserNames(aud.revisado_por)}
+                                    </span>
+                                  </div>
                                 </div>
                               )}
                             </div>
