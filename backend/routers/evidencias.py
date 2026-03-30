@@ -706,52 +706,54 @@ async def limpar_subitem(
         raise HTTPException(status_code=404, detail="Auditoria não encontrada")
     
     try:
-        # Define the target folder using the audit's designated path if available
+        # Define the target folder
         ev_root = aud.get("evidence_folder_path")
         if ev_root:
             evidences_dir = Path(ev_root)
         else:
-            # Fallback to default structure
             audit_dir = BASE_DIR / "uploads" / str(auditoria_id)
             evidences_dir = audit_dir / "evidences"
         
-        # Ensure we are working with the correct base directory for practice folders
         if not evidences_dir.exists():
             return {"ok": True, "message": "Pasta de evidências não encontrada"}
 
-        # We need to find the folder that matches the practice and subitem
-        p_folder_pattern = f"[{pratica_num}]*"
-        s_folder_pattern = f"{pratica_num}.{subitem_idx + 1}*"
-        
+        # 1. Encontrar a pasta da prática (Regex robusto)
+        # Padrão: começa com o número da prática opcionalmente entre colchetes, seguido por separador
+        p_regex = fr'^\[?{pratica_num}[\]\s\-\._]'
         target_dir = None
-        # Find practice folder
-        p_folders = list(evidences_dir.glob(p_folder_pattern))
-        if p_folders:
-            # Find subitem folder inside practice folder
-            s_folders = list(p_folders[0].glob(s_folder_pattern))
-            if s_folders:
-                target_dir = s_folders[0]
+        
+        for p_folder in evidences_dir.iterdir():
+            if p_folder.is_dir() and re.match(p_regex, p_folder.name):
+                # 2. Encontrar a pasta do subitem dentro da prática
+                # Padrão: X.Y seguido de separador ou fim de string
+                s_regex = fr'^{pratica_num}\.{subitem_idx + 1}(?:[\s\-\._]|$)'
+                for s_folder in p_folder.iterdir():
+                    if s_folder.is_dir() and re.match(s_regex, s_folder.name):
+                        target_dir = s_folder
+                        break
+                if target_dir: break
 
         if target_dir and target_dir.exists():
             # Delete everything inside target_dir
             shutil.rmtree(str(target_dir))
             log.info(f"Pasta de subitem removida: {target_dir}")
             
-            # Recreate the folder (empty) to avoid errors on next upload
+            # Recreate the folder (empty)
             target_dir.mkdir(parents=True, exist_ok=True)
+            log.info(f"Pasta recriada (vazia): {target_dir}")
         else:
+            log.warning(f"Pasta de subitem não encontrada para P{pratica_num} S{subitem_idx+1} em {evidences_dir}")
             return {"ok": True, "message": "Pasta já não existe ou está vazia"}
             
-        # Atualizar mapa
-        if evidences_dir.exists():
-            new_map = _get_or_build_evidence_map(str(evidences_dir), refresh=True)
-            db_map = {f"{p}.{s}": files for (p, s), files in new_map.items()}
-            
-            with get_db() as conn:
-                q = "UPDATE auditorias SET evidence_map=? WHERE id=?"
-                if USE_POSTGRES: q = q.replace("?", "%s")
-                conn.execute(q, (json.dumps(db_map), auditoria_id))
-                conn.commit()
+        # Atualizar mapa no banco de dados
+        new_map = _get_or_build_evidence_map(str(evidences_dir), refresh=True)
+        db_map = {f"{p}.{s}": files for (p, s), files in new_map.items()}
+        
+        with get_db() as conn:
+            q = "UPDATE auditorias SET evidence_map=? WHERE id=?"
+            if USE_POSTGRES: q = q.replace("?", "%s")
+            conn.execute(q, (json.dumps(db_map), auditoria_id))
+            conn.commit()
             
         return {"ok": True, "message": "Todas as evidências do subitem foram removidas"}
     except Exception as e:
