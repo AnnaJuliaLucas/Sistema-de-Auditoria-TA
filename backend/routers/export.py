@@ -215,14 +215,20 @@ def _parse_assessment_sheet(ws, audit_id: int):
         p_num = None
         s_idx = None
 
-        # 2a. Explicit Match (1.1)
+        # 2a. Explicit Match (1.1 or 6.A)
         explicit_match = None
         if isinstance(first_col, str):
-            explicit_match = re.match(r'^(\d+)\.(\d+)', first_col.strip())
+            explicit_match = re.match(r'^(\d+)\.([A-Za-z0-9]+)', first_col.strip())
         
         if explicit_match:
             p_num = int(explicit_match.group(1))
-            s_idx = int(explicit_match.group(2)) - 1
+            s_part = explicit_match.group(2)
+            if s_part.isdigit():
+                s_idx = int(s_part) - 1
+            else:
+                # Convert A->0, B->1, etc.
+                s_idx = ord(s_part.upper()) - ord('A')
+            
             current_p_num = p_num
             current_s_offset = s_idx
         # 2b. Practice Header (int)
