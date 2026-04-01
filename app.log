@@ -53,3 +53,13 @@ from fasta
 2026-03-17 11:46:04,453 [INFO] auditoria_db: Database initialized
 2026-03-17 11:46:04,453 [INFO] auditoria_api: Database initialized
 2026-03-17 11:46:04,456 [INFO] auditoria_api: Backend stopped
+2026-03-18 23:32:18,382 [INFO] auditoria_api: Logging initialized at: app.log
+2026-03-18 23:32:18,674 [INFO] auditoria_db: Using SQLite: C:\AuditoriaTA\dados\auditoria_ta.db
+2026-03-18 23:32:19,659 [INFO] auditoria_api: Starting Sistema de Auditoria TA - Backend API
+2026-03-18 23:32:19,660 [INFO] auditoria_api: DEBUG: evidencias.py first 100 chars: from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form, BackgroundTasks
+from fa
+2026-03-18 23:32:19,660 [INFO] auditoria_api: DEBUG: evidencias.py md5: 757712519cba9ec9debd9c2090811a5b
+2026-03-18 23:32:27,419 [INFO] auditoria_db: Test user seeded/verified (existing passwords preserved)
+2026-03-18 23:32:27,432 [INFO] auditoria_db: SQLite defensive cleanup: cleared 'openai' from audits without keys
+2026-03-18 23:32:27,432 [INFO] auditoria_db: Database initialized
+2026-03-18 23:32:27,432 [INFO] auditoria_api: Database initialized

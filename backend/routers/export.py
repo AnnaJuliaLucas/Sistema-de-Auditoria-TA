@@ -252,8 +252,13 @@ def _parse_assessment_sheet(ws, audit_id: int):
 
         # 3. Score Extraction
         nota_sa = None
-        # Check typical score columns: I (8), J (9), H (7)
-        for col_idx in (8, 9, 7):
+        
+        # Priority columns based on format
+        check_cols = [8, 9, 7] # Default: I, J, H
+        if is_integrated:
+            check_cols = [1, 8, 9, 7] # Priority to Column B for Integrated Report
+            
+        for col_idx in check_cols:
             if len(row_cells) > col_idx:
                 val = _safe_int(row_cells[col_idx])
                 if val is not None:
