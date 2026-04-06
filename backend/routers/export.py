@@ -529,6 +529,7 @@ def get_unidades_areas():
         "Sitrel": ["Laminação"],
         "João Monlevade": ["Aciaria", "Laminação TL2", "Laminação TL3", "Alto Forno", "Utilidades"],
         "Trefilarias": ["São Paulo", "Sabará", "Resende", "Juiz de Fora"],
-        "Mina do Andrade": ["Mineração"]
+        "Mina do Andrade": ["Mineração"],
+        "Sul Fluminense": ["Aciaria (RS)", "Utilidades (RS)", "Laminação (RS)", "Laminação (BM)", "Utilidades (BM)"]
     }
     
