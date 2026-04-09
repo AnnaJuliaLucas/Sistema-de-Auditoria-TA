@@ -584,34 +584,79 @@ def parse_assessment(file_path):
         ws = wb[sheet_name]
         praticas_dict = {} # Use dict to store practices by number
         
+        current_p_num = None
+        current_s_idx = 0
+        
+        # Keywords to skip in Column C to avoid treating headers as subitems
+        SKIP_KEYWORDS = {"EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO", "PRÁTICA", "REQUISITO", "EVIDENCIAS", "N°", "NÃO TEM PRÁTICA"}
+
         for row in ws.iter_rows(values_only=True):
             if not row or all(v is None for v in row):
                 continue
             
-            first_col = str(row[0] or "").strip()
+            # Robust first_col extraction
+            raw_col_a = row[0]
+            first_col = str(raw_col_a or "").strip()
+            col2_str = str(row[2] or "").strip() # Column C (Evidence/Description)
+            col1_str = str(row[1] or "").strip() # Column B
             
             # Detect subitem: "1.1", "1.2", etc.
             subitem_match = re.match(r'^(\d+)\.(\d+)', first_col)
             # Detect practice header: "1", "2", or "1 - ROTINAS"
             practice_match = re.match(r'^(\d+)\s*$', first_col)
             integrated_practice_match = re.match(r'^(\d+)\s*[-–]', first_col)
+            
+            # Additional check: Practice might be in Column B if Column A is just the number
+            practice_b_match = None
+            if not practice_match and not integrated_practice_match:
+                 if first_col.isdigit() and len(first_col) < 3 and col1_str:
+                     practice_b_match = True
+
+            p_num = None
+            s_idx = None
+            is_subitem = False
 
             if subitem_match:
                 p_num = int(subitem_match.group(1))
                 s_idx = int(subitem_match.group(2)) - 1
+                current_p_num = p_num
+                current_s_idx = s_idx + 1
+                is_subitem = True
+            elif (practice_match or integrated_practice_match or practice_b_match) and len(first_col) < 50:
+                m = practice_match or integrated_practice_match
+                if m:
+                    p_num = int(m.group(1))
+                else:
+                    p_num = int(first_col)
                 
+                p_nome = col1_str.replace('\n', ' ')
+                current_p_num = p_num
+                current_s_idx = 0 # Reset for new practice
+                
+                if p_num not in praticas_dict:
+                    praticas_dict[p_num] = {'num': p_num, 'nome': p_nome or f"Prática {p_num}", 'subitems_map': {}}
+                elif p_nome and 'PRÁTICA' not in p_nome.upper():
+                    praticas_dict[p_num]['nome'] = p_nome
+                continue # Skip processing this row as subitem
+            
+            # Positional Subitem Detection (Smart Parser)
+            elif current_p_num is not None and col2_str and not first_col:
+                # Check if it's not a header row
+                if col2_str.upper() not in SKIP_KEYWORDS and "N°" not in first_col:
+                    p_num = current_p_num
+                    s_idx = current_s_idx
+                    current_s_idx += 1
+                    is_subitem = True
+
+            if is_subitem and p_num is not None and s_idx is not None:
                 # Ensure practice exists
                 if p_num not in praticas_dict:
                     praticas_dict[p_num] = {'num': p_num, 'nome': f"Prática {p_num}", 'subitems_map': {}}
                 
                 # Extract data
                 n0, n1, n2, n3, n4 = row[3], row[4], row[5], row[6], row[7]
-                col2_str = str(row[2] or "").strip()
                 
-                if col2_str.upper() == "EVIDÊNCIA": continue
-                
-                # Robust note parsing - scan multiple columns if row[8] is empty
-                # Some sheets have notes in I, J, or H
+                # Robust note parsing
                 final_nota = None
                 for col_idx in [8, 9, 7]: # Columns I, J, H
                     if len(row) > col_idx:
@@ -626,26 +671,15 @@ def parse_assessment(file_path):
                     'niveis': {k: str(v).strip() if v else '' for k, v in enumerate([n0, n1, n2, n3, n4])},
                     'nota_sa': final_nota
                 }
-            elif (practice_match or integrated_practice_match) and len(first_col) < 50:
-                m = practice_match or integrated_practice_match
-                p_num = int(m.group(1))
-                p_nome = str(row[1] or "").strip().replace('\n', ' ')
-                
-                if p_num not in praticas_dict:
-                    praticas_dict[p_num] = {'num': p_num, 'nome': p_nome, 'subitems_map': {}}
-                else:
-                    # Update name if it was just a placeholder
-                    if p_nome and 'PRÁTICA' not in p_nome.upper():
-                        praticas_dict[p_num]['nome'] = p_nome
 
         # Convert dict to sorted list with ordered subitems
         final_praticas = []
         for p_num in sorted(praticas_dict.keys()):
             p_data = praticas_dict[p_num]
-            # Convert subitems_map to list, filling gaps as needed or just returning found ones
-            # The database part expects subitems in order starting from 0
             subitems = []
-            max_idx = max(p_data['subitems_map'].keys()) if p_data['subitems_map'] else -1
+            if not p_data['subitems_map']: continue
+            
+            max_idx = max(p_data['subitems_map'].keys())
             for i in range(max_idx + 1):
                 subitems.append(p_data['subitems_map'].get(i, {'nome': f'Subitem {i+1}', 'evidencia': '', 'niveis': {}, 'nota_sa': None}))
             
@@ -658,6 +692,8 @@ def parse_assessment(file_path):
         msg = f"Erro ao ler assessment: {e}"
         try: st.error(msg)
         except: print(msg)
+        import traceback
+        print(traceback.format_exc())
         return []
 
 # ──────────────────────────────────────────────────────────────────────────────
