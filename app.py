@@ -590,19 +590,28 @@ def parse_assessment(file_path):
         # Keywords to skip in Column C to avoid treating headers as subitems
         SKIP_KEYWORDS = {"EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO", "PRÁTICA", "REQUISITO", "EVIDENCIAS", "N°", "NÃO TEM PRÁTICA"}
 
-        for row in ws.iter_rows(values_only=True):
+        # Diagnostic logging for Streamlit UI
+        st.info(f"🔍 Analisando aba: {sheet_name}")
+        pbar = st.progress(0)
+        status_text = st.empty()
+
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            row_idx = i + 1
+            if row_idx % 20 == 0:
+                pbar.progress(min(row_idx / 500, 1.0))
+                status_text.text(f"Processando linha {row_idx}...")
+            
             if not row or all(v is None for v in row):
                 continue
             
             # Robust first_col extraction
             raw_col_a = row[0]
             first_col = str(raw_col_a or "").strip()
-            col2_str = str(row[2] or "").strip() # Column C (Evidence/Description)
             col1_str = str(row[1] or "").strip() # Column B
+            col2_str = str(row[2] or "").strip() # Column C (Evidence/Description)
             
-            # Detect subitem: "1.1", "1.2", etc.
+            # Practice detection
             subitem_match = re.match(r'^(\d+)\.(\d+)', first_col)
-            # Detect practice header: "1", "2", or "1 - ROTINAS"
             practice_match = re.match(r'^(\d+)\s*$', first_col)
             integrated_practice_match = re.match(r'^(\d+)\s*[-–]', first_col)
             
@@ -612,10 +621,6 @@ def parse_assessment(file_path):
                  if first_col.isdigit() and len(first_col) < 3 and col1_str:
                      practice_b_match = True
 
-            p_num = None
-            s_idx = None
-            is_subitem = False
-
             if subitem_match:
                 p_num = int(subitem_match.group(1))
                 s_idx = int(subitem_match.group(2)) - 1
@@ -624,20 +629,25 @@ def parse_assessment(file_path):
                 is_subitem = True
             elif (practice_match or integrated_practice_match or practice_b_match) and len(first_col) < 50:
                 m = practice_match or integrated_practice_match
-                if m:
-                    p_num = int(m.group(1))
-                else:
-                    p_num = int(first_col)
-                
+                p_num = int(m.group(1)) if m else int(first_col)
                 p_nome = col1_str.replace('\n', ' ')
-                current_p_num = p_num
-                current_s_idx = 0 # Reset for new practice
+                current_p_num = p_num # Set the active practice
+                current_s_idx = 0 
                 
                 if p_num not in praticas_dict:
                     praticas_dict[p_num] = {'num': p_num, 'nome': p_nome or f"Prática {p_num}", 'subitems_map': {}}
                 elif p_nome and 'PRÁTICA' not in p_nome.upper():
                     praticas_dict[p_num]['nome'] = p_nome
-                continue # Skip processing this row as subitem
+                
+                # Check if this row also contains a subitem (common in GACAT)
+                if col2_str and col2_str.upper() not in SKIP_KEYWORDS:
+                    is_subitem = True
+                    p_num = current_p_num
+                    s_idx = current_s_idx
+                    current_s_idx += 1
+                else:
+                    st.write(f"✅ Prática {p_num} detectada: {p_nome[:40]}...")
+                    continue # Skip to next row only if no subitem on this header row
             
             # Positional Subitem Detection (Smart Parser)
             elif current_p_num is not None and col2_str and not first_col:
