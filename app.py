@@ -379,7 +379,7 @@ print(file)
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     st.set_page_config(
-        page_title="Auditoria TA · IA",
+        page_title="Auditoria TA · IA (VERIFIED FIXED 2026)",
         page_icon="🤖",
         layout="wide",
         initial_sidebar_state="expanded"
@@ -696,6 +696,10 @@ def parse_assessment(file_path):
             p_data['subitems'] = subitems
             del p_data['subitems_map']
             final_praticas.append(p_data)
+            
+        # Summary diagnostic
+        total_notas = sum(1 for p in final_praticas for s in p['subitems'] if s['nota_sa'] is not None)
+        st.success(f"📊 {len(final_praticas)} Práticas carregadas. Total notas SA: {total_notas}")
             
         return final_praticas
     except Exception as e:
@@ -1969,7 +1973,11 @@ elif st.session_state.pagina == 'nova':
             if aud_id:
                 if assessment_path and os.path.isfile(assessment_path):
                     praticas=parse_assessment(assessment_path)
+                    st.write(f"🔍 Diagnostic: {len(praticas)} práticas encontradas.")
                     for p in praticas:
+                        total_sub = len(p['subitems'])
+                        notas_encontradas = [s['nota_sa'] for s in p['subitems'] if s['nota_sa'] is not None]
+                        st.write(f"  - Prática {p['num']}: {total_sub} subitens, notas: {notas_encontradas}")
                         for idx,sub in enumerate(p['subitems']):
                             salvar_avaliacao(aud_id,p['num'],p['nome'],idx,sub['nome'],sub['evidencia'],
                                 sub['niveis'].get(0,''),sub['niveis'].get(1,''),sub['niveis'].get(2,''),
@@ -1977,7 +1985,9 @@ elif st.session_state.pagina == 'nova':
                                 'pendente',None,'','')
                 st.session_state.auditoria_id=aud_id
                 st.success("✅ Auditoria criada!")
-                st.session_state.pagina='auditar'; st.rerun()
+                if st.button("Ir para Auditoria"):
+                    st.session_state.pagina='auditar'; st.rerun()
+                st.stop() # Force stop to let user see logs
 
 # ──────────────────────────────────────────────────────────────────────────────
 # AUDITAR
