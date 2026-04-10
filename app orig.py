@@ -571,6 +571,83 @@ def _limpar_cache_auditoria():
     except Exception:
         pass  # seguro falhar silenciosamente
 
+# ── PARSER PANDAS (Robust fallback for formulas) ──────────────────────────
+def parse_assessment_pandas(file_path):
+    import re
+    import pandas as pd
+    try:
+        xl = pd.ExcelFile(file_path)
+        sheet_name = next((n for n in xl.sheet_names if 'ROAD MAP' in n and 'Trefila' not in n), xl.sheet_names[0])
+        df_sheet = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+        
+        praticas_dict = {}
+        current_p_num = None
+        current_s_idx = 0
+        SKIP_KEYWORDS = {"EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO", "PRÁTICA", "REQUISITO", "EVIDENCIAS", "N°", "NÃO TEM PRÁTICA"}
+
+        for i, row in df_sheet.iterrows():
+            row_vals = row.tolist()
+            if all(pd.isna(v) for v in row_vals): continue
+            
+            first_col = str(row_vals[0]).strip() if pd.notna(row_vals[0]) else ""
+            col1_str = str(row_vals[1]).strip() if pd.notna(row_vals[1]) else ""
+            col2_str = str(row_vals[2]).strip() if pd.notna(row_vals[2]) else ""
+            
+            # Detectar subitem ou prática
+            sub_m = re.match(r'^(\d+)\.(\d+)', first_col)
+            prac_m = re.match(r'^(\d+)\s*$', first_col)
+            int_m  = re.match(r'^(\d+)\s*[-–]', first_col)
+            prac_b = (not prac_m and not int_m and first_col.isdigit() and len(first_col) < 3 and col1_str)
+
+            is_subitem = False
+            if sub_m:
+                p_num = int(sub_m.group(1)); s_idx = int(sub_m.group(2)) - 1
+                current_p_num = p_num; current_s_idx = s_idx + 1; is_subitem = True
+            elif (prac_m or int_m or prac_b) and len(first_col) < 50:
+                m = prac_m or int_m
+                p_num = int(m.group(1)) if m else int(first_col)
+                p_nome = col1_str.replace('\n', ' ')
+                current_p_num = p_num; current_s_idx = 0
+                if p_num not in praticas_dict:
+                    praticas_dict[p_num] = {'num': p_num, 'nome': p_nome or f"Prática {p_num}", 'subitems_map': {}}
+                if col2_str and col2_str.upper() not in SKIP_KEYWORDS:
+                    is_subitem = True; s_idx = current_s_idx; current_s_idx += 1
+                else: continue
+            elif current_p_num is not None and col2_str and not first_col:
+                if col2_str.upper() not in SKIP_KEYWORDS and "N°" not in first_col:
+                    p_num = current_p_num; s_idx = current_s_idx; current_s_idx += 1; is_subitem = True
+
+            if is_subitem and current_p_num in praticas_dict:
+                n_list = [str(row_vals[j]).strip() if pd.notna(row_vals[j]) else "" for j in range(3, 8)]
+                final_nota = None
+                for col_idx in [8, 9, 7]: # I, J, H
+                    if len(row_vals) > col_idx:
+                        v = row_vals[col_idx]
+                        if pd.notna(v):
+                            try: final_nota = int(float(v)); break
+                            except: pass
+                praticas_dict[current_p_num]['subitems_map'][s_idx] = {
+                    'nome': col2_str.split('\n')[0].strip(),
+                    'evidencia': col2_str,
+                    'niveis': {k: v for k, v in enumerate(n_list)},
+                    'nota_sa': final_nota
+                }
+        
+        # Consolidar
+        final_praticas = []
+        for p_num in sorted(praticas_dict.keys()):
+            p_data = praticas_dict[p_num]
+            if not p_data['subitems_map']: continue
+            max_idx = max(p_data['subitems_map'].keys())
+            subitems = []
+            for i in range(max_idx + 1):
+                subitems.append(p_data['subitems_map'].get(i, {'nome': f'Subitem {i+1}', 'evidencia': '', 'niveis': {}, 'nota_sa': None}))
+            final_praticas.append({'num': p_data['num'], 'nome': p_data['nome'], 'subitems': subitems})
+        return final_praticas
+    except Exception as e:
+        print(f"Erro Pandas Parser: {e}")
+        return []
+
 # ──────────────────────────────────────────────────────────────────────────────
 # PARSER DO ASSESSMENT
 # ──────────────────────────────────────────────────────────────────────────────
@@ -652,6 +729,15 @@ def parse_assessment(file_path):
             final_praticas.append({'num': p_data['num'], 'nome': p_data['nome'], 'subitems': subitems})
         
         total_notas = sum(1 for p in final_praticas for s in p['subitems'] if s['nota_sa'] is not None)
+        if total_notas == 0:
+            st.warning("⚠️ Openpyxl não encontrou notas (fórmulas?). Tentando motor Pandas...")
+            p_fallback = parse_assessment_pandas(file_path)
+            if p_fallback:
+                total_f = sum(1 for p in p_fallback for s in p['subitems'] if s['nota_sa'] is not None)
+                if total_f > 0:
+                    st.success(f"✅ Motor Pandas recuperou {total_f} notas!")
+                    return p_fallback
+        
         st.success(f"📊 [ORIGINAL] {len(final_praticas)} Práticas. Total notas SA: {total_notas}")
         return final_praticas
     except Exception as e:
