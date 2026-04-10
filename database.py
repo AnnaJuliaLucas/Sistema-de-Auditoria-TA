@@ -461,6 +461,60 @@ def _ensure_critical_tables(conn):
             pass  # Já existe
     conn.commit()
 
+    # ── Defensive: fix stale FK references to 'auditorias_old' ──
+    _fix_stale_fk_references(conn)
+
+
+def _fix_stale_fk_references(conn):
+    """
+    Detects and fixes tables whose FOREIGN KEY references point to
+    'auditorias_old' instead of 'auditorias'. This can happen after
+    ALTER TABLE RENAME migrations leave orphaned FK constraints.
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='table' "
+            "AND sql LIKE '%auditorias_old%'"
+        )
+        broken_tables = cursor.fetchall()
+        if not broken_tables:
+            return  # Nothing to fix
+
+        log.warning(f"Found {len(broken_tables)} table(s) with stale FK "
+                    f"to 'auditorias_old': {[t[0] for t in broken_tables]}. "
+                    f"Auto-repairing...")
+
+        conn.execute("PRAGMA foreign_keys = OFF;")
+
+        for table_name, create_sql in broken_tables:
+            # Build corrected CREATE TABLE statement
+            fixed_sql = create_sql.replace(
+                '"auditorias_old"', 'auditorias'
+            ).replace(
+                "'auditorias_old'", 'auditorias'
+            ).replace(
+                'auditorias_old', 'auditorias'
+            )
+            # Change table name to _new for the temp table
+            fixed_sql = fixed_sql.replace(
+                f"CREATE TABLE {table_name}",
+                f"CREATE TABLE {table_name}_fkfix", 1
+            )
+
+            conn.execute(fixed_sql)
+            conn.execute(f"INSERT INTO {table_name}_fkfix SELECT * FROM {table_name};")
+            conn.execute(f"DROP TABLE {table_name};")
+            conn.execute(f"ALTER TABLE {table_name}_fkfix RENAME TO {table_name};")
+            log.info(f"  Fixed FK for table '{table_name}'")
+
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.commit()
+        log.info("Stale FK references repaired successfully.")
+    except Exception as e:
+        log.error(f"Error fixing stale FK references: {e}")
+        # Non-fatal: don't crash init if this fails
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BACKUP AUTOMÁTICO
