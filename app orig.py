@@ -378,7 +378,7 @@ print(file)
 # PÁGINA
 # ──────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Auditoria TA · IA",
+    page_title="Auditoria TA · IA (VERIFIED FIXED 2026 - ORIG)",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -575,34 +575,87 @@ def _limpar_cache_auditoria():
 # PARSER DO ASSESSMENT
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_assessment(file_path):
+    import re
     try:
+        from openpyxl import load_workbook
         wb = load_workbook(file_path, data_only=True)
         sheet_name = next((n for n in wb.sheetnames if 'ROAD MAP' in n and 'Trefila' not in n), wb.sheetnames[0])
         ws = wb[sheet_name]
-        praticas = []; pratica_atual = None
-        for row in ws.iter_rows(values_only=True):
-            if row[0]=='N°' or row[1]=='PRÁTICA' or all(v is None for v in row): continue
-            col0,col1,col2 = row[0],row[1],row[2]
-            n0,n1,n2,n3,n4 = row[3],row[4],row[5],row[6],row[7]
-            nota_item = row[8]
-            if isinstance(col0,int) and col1 and 'PRÁTICA' not in str(col1):
-                pratica_atual = {'num':col0,'nome':str(col1).strip().replace('\n',' '),'subitems':[]}
-                praticas.append(pratica_atual)
-                if col2:
-                    pratica_atual['subitems'].append({
-                        'nome':str(col2).split('\n')[0].strip(),
-                        'evidencia':str(col2).strip(),
-                        'niveis':{k:str(v).strip() if v else '' for k,v in enumerate([n0,n1,n2,n3,n4])},
-                        'nota_sa':int(nota_item) if isinstance(nota_item,(int,float)) else None
-                    })
-            elif col0 is None and col2 and pratica_atual:
-                pratica_atual['subitems'].append({
-                    'nome':str(col2).split('\n')[0].strip(),
-                    'evidencia':str(col2).strip(),
-                    'niveis':{k:str(v).strip() if v else '' for k,v in enumerate([n0,n1,n2,n3,n4])},
-                    'nota_sa':int(nota_item) if isinstance(nota_item,(int,float)) else None
-                })
-        return praticas
+        praticas_dict = {} 
+        
+        current_p_num = None
+        current_s_idx = 0
+        SKIP_KEYWORDS = {"EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO", "PRÁTICA", "REQUISITO", "EVIDENCIAS", "N°", "NÃO TEM PRÁTICA"}
+
+        st.info(f"🔍 [ORIGINAL] Analisando aba: {sheet_name}")
+
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if not row or all(v is None for v in row): continue
+            
+            first_col = str(row[0] or "").strip()
+            col1_str = str(row[1] or "").strip() 
+            col2_str = str(row[2] or "").strip() 
+            
+            subitem_match = re.match(r'^(\d+)\.(\d+)', first_col)
+            practice_match = re.match(r'^(\d+)\s*$', first_col)
+            integrated_practice_match = re.match(r'^(\d+)\s*[-–]', first_col)
+            
+            practice_b_match = None
+            if not practice_match and not integrated_practice_match:
+                 if first_col.isdigit() and len(first_col) < 3 and col1_str:
+                     practice_b_match = True
+
+            is_subitem = False
+            if subitem_match:
+                p_num = int(subitem_match.group(1)); s_idx = int(subitem_match.group(2)) - 1
+                current_p_num = p_num; current_s_idx = s_idx + 1; is_subitem = True
+            elif (practice_match or integrated_practice_match or practice_b_match) and len(first_col) < 50:
+                m = practice_match or integrated_practice_match
+                p_num = int(m.group(1)) if m else int(first_col)
+                p_nome = col1_str.replace('\n', ' ')
+                current_p_num = p_num; current_s_idx = 0
+                if p_num not in praticas_dict:
+                    praticas_dict[p_num] = {'num': p_num, 'nome': p_nome or f"Prática {p_num}", 'subitems_map': {}}
+                
+                if col2_str and col2_str.upper() not in SKIP_KEYWORDS:
+                    is_subitem = True; s_idx = current_s_idx; current_s_idx += 1
+                else: continue
+
+            elif current_p_num is not None and col2_str and not first_col:
+                if col2_str.upper() not in SKIP_KEYWORDS and "N°" not in first_col:
+                    p_num = current_p_num; s_idx = current_s_idx; current_s_idx += 1; is_subitem = True
+
+            if is_subitem:
+                n0, n1, n2, n3, n4 = row[3], row[4], row[5], row[6], row[7]
+                final_nota = None
+                for col_idx in [8, 9, 7]:
+                    if len(row) > col_idx:
+                        val = db_module._safe_int(row[col_idx])
+                        if val is not None: final_nota = val; break
+                
+                praticas_dict[current_p_num]['subitems_map'][s_idx] = {
+                    'nome': col2_str.split('\n')[0].strip(),
+                    'evidencia': col2_str,
+                    'niveis': {k: str(v).strip() if v else '' for k, v in enumerate([n0, n1, n2, n3, n4])},
+                    'nota_sa': final_nota
+                }
+        
+        final_praticas = []
+        for p_num in sorted(praticas_dict.keys()):
+            p_data = praticas_dict[p_num]
+            if not p_data['subitems_map']: continue
+            max_idx = max(p_data['subitems_map'].keys())
+            subitems = []
+            for i in range(max_idx + 1):
+                subitems.append(p_data['subitems_map'].get(i, {'nome': f'Subitem {i+1}', 'evidencia': '', 'niveis': {}, 'nota_sa': None}))
+            
+            final_praticas.append({'num': p_data['num'], 'nome': p_data['nome'], 'subitems': subitems})
+        
+        total_notas = sum(1 for p in final_praticas for s in p['subitems'] if s['nota_sa'] is not None)
+        st.success(f"📊 [ORIGINAL] {len(final_praticas)} Práticas. Total notas SA: {total_notas}")
+        return final_praticas
+    except Exception as e:
+        st.error(f"Erro ao ler assessment: {e}"); return []
     except Exception as e:
         st.error(f"Erro ao ler assessment: {e}"); return []
 
