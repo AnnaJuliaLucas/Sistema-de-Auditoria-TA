@@ -156,10 +156,45 @@ def process_heavy_files(audit_id: int, assessment_url: str, evidence_url: str, a
         try:
             import openpyxl
             wb = openpyxl.load_workbook(assessment_path, data_only=True)
-            ws = wb.active
+            ws = _select_best_sheet(wb)
             _parse_assessment_sheet(ws, audit_id)
         except Exception as e:
             log.error(f"Background Excel sync failed for audit {audit_id}: {e}")
+
+
+def _select_best_sheet(wb):
+    """
+    Selects the best worksheet for score extraction.
+    Priority:
+      1. Sheet whose name contains 'ROAD MAP' (but NOT 'Trefila')
+      2. Sheet whose header row contains 'NOTA ITEM'
+      3. wb.active as fallback
+    """
+    # Priority 1: Name-based match
+    for name in wb.sheetnames:
+        upper = name.upper()
+        if "ROAD MAP" in upper and "TREFILA" not in upper:
+            log.info(f"Sheet selection: chose '{name}' (ROAD MAP match)")
+            return wb[name]
+
+    # Priority 2: Header-based match — look for 'NOTA ITEM' in first 10 rows
+    for name in wb.sheetnames:
+        ws = wb[name]
+        for row in ws.iter_rows(min_row=1, max_row=10, values_only=True):
+            if row and any(str(c).upper().strip() == "NOTA ITEM" for c in row if c):
+                log.info(f"Sheet selection: chose '{name}' (NOTA ITEM header found)")
+                return ws
+
+    # Priority 3: Name contains 'PRÁTICAS' or 'PRATICAS'
+    for name in wb.sheetnames:
+        upper = name.upper()
+        if ("PRÁTICA" in upper or "PRATICA" in upper) and "TREFILA" not in upper:
+            log.info(f"Sheet selection: chose '{name}' (PRÁTICAS match)")
+            return wb[name]
+
+    log.info(f"Sheet selection: using active sheet '{wb.active.title}' (fallback)")
+    return wb.active
+
 
 def _parse_assessment_sheet(ws, audit_id: int):
     """
@@ -175,14 +210,11 @@ def _parse_assessment_sheet(ws, audit_id: int):
     updates = []
     is_integrated = False
     
-    # Headers to skip
-    SKIP_KEYWORDS = {
-        "EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO", "PRÁTICA", "REQUISITO", 
-        "EVIDENCIAS", "N°", "NÃO TEM PRÁTICA", "PONTUAÇÃO", 
-        "STATUS DA NOTA", "TIPO DE NÃO CONFORMIDADE"
-    }
+    # Keywords that identify header/footer rows to skip
+    HEADER_KEYWORDS = {"N°", "Nº", "PRÁTICA", "EVIDÊNCIA", "NOTA ITEM", "NOTA PRÁTICA",
+                       "NÃO TEM PRÁTICA", "PRÁTICAS", "RESULTADO", "ASSESSMENT"}
 
-    log.info(f"Refined parsing started for audit {audit_id}")
+    log.info(f"Refined parsing started for audit {audit_id}, sheet='{ws.title}'")
 
     # 1. Detect format by inspecting the first few rows
     for row in ws.iter_rows(min_row=1, max_row=10, values_only=True):
@@ -204,10 +236,20 @@ def _parse_assessment_sheet(ws, audit_id: int):
         first_col = row_cells[0]
         col2_val = str(row_cells[2] or "").strip() if len(row_cells) > 2 else ""
         
-        # 1. Header/Footer Skip
-        if isinstance(first_col, str) and ("N°" in first_col or len(first_col) > 10):
-            current_p_num = None
-            continue
+        # 1. Header/Footer Skip — use keyword matching instead of string length
+        if isinstance(first_col, str):
+            first_upper = first_col.strip().upper()
+            # Skip if it matches a known header keyword exactly
+            if first_upper in HEADER_KEYWORDS or "N°" in first_col or "Nº" in first_col:
+                # Don't reset current_p_num for repeated section headers
+                continue
+            # Skip title/metadata rows (Assessment title, Unidade:, Resultado, TOTAL, etc.)
+            if any(kw in first_upper for kw in ("ASSESSMENT", "UNIDADE", "RESULTADO", 
+                                                  "TOTAL", "RELATOR", "APROVADOR",
+                                                  "PONTOS FORTE", "PÁGINA", "RADAR",
+                                                  "PALAVRA")):
+                continue
+        
         if not col2_val or col2_val.upper() == "EVIDÊNCIA":
             continue
 
@@ -231,13 +273,13 @@ def _parse_assessment_sheet(ws, audit_id: int):
             
             current_p_num = p_num
             current_s_offset = s_idx
-        # 2b. Practice Header (int)
+        # 2b. Practice Header (int) — this is the first subitem of a new practice
         elif isinstance(first_col, int):
             p_num = first_col
             s_idx = 0
             current_p_num = p_num
             current_s_offset = 0
-        # 2c. Practice Header (string "1")
+        # 2c. Practice Header (string "1" or "1 -")
         elif isinstance(first_col, str):
             m_p = re.match(r'^(\d+)\s*$', first_col.strip())
             m_ip = re.match(r'^(\d+)\s*[-–]', first_col.strip())
@@ -247,7 +289,7 @@ def _parse_assessment_sheet(ws, audit_id: int):
                 s_idx = 0
                 current_p_num = p_num
                 current_s_offset = 0
-        # 2d. Positional
+        # 2d. Positional — subitem without explicit number (col A is None)
         elif first_col is None and current_p_num is not None:
             current_s_offset += 1
             p_num = current_p_num
@@ -260,7 +302,7 @@ def _parse_assessment_sheet(ws, audit_id: int):
         nota_sa = None
         
         # Priority columns based on format
-        check_cols = [8, 9, 7] # Default: I, J, H
+        check_cols = [8, 9, 7] # Default: I, J, H (0-indexed: col9=NOTA ITEM, col10=NOTA PRATICA)
         if is_integrated:
             check_cols = [1, 8, 9, 7] # Priority to Column B for Integrated Report
             
@@ -273,7 +315,7 @@ def _parse_assessment_sheet(ws, audit_id: int):
 
         if nota_sa is not None:
             updates.append((nota_sa, audit_id, p_num, s_idx))
-            log.debug(f"Row {i+1}: Found P{p_num} S{s_idx+1} = {nota_sa}")
+            log.info(f"Row {i+1}: Found P{p_num} S{s_idx} = {nota_sa}")
 
     # 3. Apply updates
     if updates:
@@ -286,6 +328,8 @@ def _parse_assessment_sheet(ws, audit_id: int):
                 """, params)
             conn.commit()
         log.info(f"Audit {audit_id}: Finished syncing {len(updates)} subitems from Excel.")
+    else:
+        log.warning(f"Audit {audit_id}: NO scores extracted from sheet '{ws.title}'!")
     
     return len(updates)
 
@@ -353,7 +397,7 @@ def importar_assessment(auditoria_id: int, assessment_path: str = ""):
     try:
         import openpyxl
         wb = openpyxl.load_workbook(path, data_only=True)
-        ws = wb.active
+        ws = _select_best_sheet(wb)
         imported = _parse_assessment_sheet(ws, auditoria_id)
         return {"ok": True, "imported": imported}
     except Exception as e:
