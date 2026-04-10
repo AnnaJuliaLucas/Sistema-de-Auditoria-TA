@@ -587,11 +587,17 @@ def parse_assessment_pandas(file_path):
         current_s_idx = 0
         SKIP_KEYWORDS = {"EVIDÊNCIA", "SUBITEM", "DESCRIÇÃO", "PRÁTICA", "REQUISITO", "EVIDENCIAS", "N°", "NÃO TEM PRÁTICA"}
 
+        def clean_num(v):
+            if pd.isna(v): return ""
+            s = str(v).strip()
+            if s.endswith('.0'): s = s[:-2]
+            return s
+
         for i, row in df_sheet.iterrows():
             row_vals = row.tolist()
             if all(pd.isna(v) for v in row_vals): continue
             
-            first_col = str(row_vals[0]).strip() if pd.notna(row_vals[0]) else ""
+            first_col = clean_num(row_vals[0])
             col1_str = str(row_vals[1]).strip() if pd.notna(row_vals[1]) else ""
             col2_str = str(row_vals[2]).strip() if pd.notna(row_vals[2]) else ""
             
