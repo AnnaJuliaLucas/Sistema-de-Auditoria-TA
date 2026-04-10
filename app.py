@@ -680,6 +680,10 @@ def parse_assessment(file_path):
 
         for i, row in enumerate(ws.iter_rows(values_only=True)):
             row_idx = i + 1
+            is_subitem = False # CRITICAL FIX: Reset for each row
+            p_num = None
+            s_idx = None
+
             if row_idx % 20 == 0:
                 pbar.progress(min(row_idx / 500, 1.0))
                 status_text.text(f"Processando linha {row_idx}...")
@@ -740,6 +744,13 @@ def parse_assessment(file_path):
                     s_idx = current_s_idx
                     current_s_idx += 1
                     is_subitem = True
+            
+            # Additional GACAT/ROADMAP specific: if row has levels filled but no first_col
+            elif current_p_num is not None and any(row[3:8]) and not first_col:
+                 p_num = current_p_num
+                 s_idx = current_s_idx
+                 current_s_idx += 1
+                 is_subitem = True
 
             if is_subitem and p_num is not None and s_idx is not None:
                 # Ensure practice exists
